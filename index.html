@@ -80,6 +80,37 @@
   #csv-input { display: none; }
   .last-updated { font-size: 11px; color: rgba(255,255,255,0.4); }
 
+  /* TABS */
+  .tab-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    position: sticky;
+    top: 56px;
+    z-index: 99;
+  }
+  .tab-btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 14px 18px;
+    border: none;
+    background: none;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text2); }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
   /* MAIN LAYOUT */
   .main { padding: 24px 32px 48px; max-width: 1400px; margin: 0 auto; }
 
@@ -333,7 +364,8 @@
   .copy-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
 
   @media (max-width: 1100px) { .charts-grid { grid-template-columns: 1fr 1fr; } .charts-grid .chart-card:first-child { grid-column: 1/-1; } }
-  @media (max-width: 700px) { .metrics { grid-template-columns: 1fr 1fr; } .charts-grid { grid-template-columns: 1fr; } .main { padding: 16px; } .header { padding: 0 16px; } }
+  @media (max-width: 700px) { .metrics { grid-template-columns: 1fr 1fr; } .charts-grid { grid-template-columns: 1fr; } .main { padding: 16px; } .header { padding: 0 16px; } .tab-bar { padding: 0 16px; } }
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -355,27 +387,35 @@
   </div>
 </header>
 
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-btn active" id="tab-cts" onclick="switchTab('cts')">Click To Ship</button>
+  <button class="tab-btn" id="tab-cth" onclick="switchTab('cth')">Click To Home</button>
+</div>
+
+<!-- ===== CLICK TO SHIP PANEL ===== -->
+<div id="panel-cts" class="tab-panel active">
 <main class="main">
   <div class="metrics">
-    <div class="metric"><div class="metric-label">Total orders</div><div class="metric-value" id="m-total">—</div><div class="metric-sub" id="m-orgs">—</div></div>
-    <div class="metric danger"><div class="metric-label">Past SLO</div><div class="metric-value" id="m-late">—</div><div class="metric-sub" id="m-late-sub">overdue</div></div>
-    <div class="metric warn"><div class="metric-label">At risk</div><div class="metric-value" id="m-risk">—</div><div class="metric-sub">due today or tomorrow</div></div>
-    <div class="metric"><div class="metric-label">Countries</div><div class="metric-value" id="m-countries">—</div><div class="metric-sub" id="m-regions-sub">regions active</div></div>
+    <div class="metric"><div class="metric-label">Total orders</div><div class="metric-value" id="m-total-cts">—</div><div class="metric-sub" id="m-orgs-cts">—</div></div>
+    <div class="metric danger"><div class="metric-label">Past SLO</div><div class="metric-value" id="m-late-cts">—</div><div class="metric-sub">overdue</div></div>
+    <div class="metric warn"><div class="metric-label">At risk</div><div class="metric-value" id="m-risk-cts">—</div><div class="metric-sub">due today or tomorrow</div></div>
+    <div class="metric"><div class="metric-label">Countries</div><div class="metric-value" id="m-countries-cts">—</div><div class="metric-sub" id="m-regions-sub-cts">regions active</div></div>
   </div>
 
   <div class="charts-grid">
     <div class="chart-card">
       <div class="chart-card-title">By status</div>
-      <div style="position:relative;height:160px"><canvas id="c-status"></canvas></div>
-      <div class="legend" id="status-legend"></div>
+      <div style="position:relative;height:160px"><canvas id="c-status-cts"></canvas></div>
+      <div class="legend" id="status-legend-cts"></div>
     </div>
     <div class="chart-card">
       <div class="chart-card-title">By category</div>
-      <div style="position:relative;height:220px"><canvas id="c-cat"></canvas></div>
+      <div style="position:relative;height:220px"><canvas id="c-cat-cts"></canvas></div>
     </div>
     <div class="chart-card">
       <div class="chart-card-title">By country</div>
-      <div style="position:relative;height:220px"><canvas id="c-country"></canvas></div>
+      <div style="position:relative;height:220px"><canvas id="c-country-cts"></canvas></div>
     </div>
   </div>
 
@@ -383,40 +423,91 @@
     <div class="table-header">
       <div style="display:flex;align-items:center;gap:10px">
         <span class="table-title">Order details</span>
-        <span class="table-count" id="row-count">— rows</span>
-        <button class="copy-btn" id="copy-btn" onclick="copyTable()">
+        <span class="table-count" id="row-count-cts">— rows</span>
+        <button class="copy-btn" id="copy-btn-cts" onclick="copyTable('cts')">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="9" height="11" rx="1.5"/><path d="M2 5v8a1.5 1.5 0 0 0 1.5 1.5H11"/></svg>
           Copy table
         </button>
       </div>
       <div class="filters">
-        <select class="filter-select" id="f-status" onchange="refresh()"><option value="">All statuses</option></select>
-        <select class="filter-select" id="f-region" onchange="refresh()"><option value="">All regions</option></select>
-        <select class="filter-select" id="f-cat" onchange="refresh()"><option value="">All categories</option></select>
-        <select class="filter-select" id="f-slo" onchange="refresh()"><option value="">All SLO</option><option value="late">Past SLO</option><option value="risk">At risk (0–1d)</option><option value="ok">On track</option></select>
+        <select class="filter-select" id="f-status-cts"><option value="">All statuses</option></select>
+        <select class="filter-select" id="f-region-cts"><option value="">All regions</option></select>
+        <select class="filter-select" id="f-cat-cts"><option value="">All categories</option></select>
+        <select class="filter-select" id="f-slo-cts"><option value="">All SLO</option><option value="late">Past SLO</option><option value="risk">At risk (0–1d)</option><option value="ok">On track</option></select>
       </div>
     </div>
     <div class="tbl-wrap">
       <table>
         <thead>
           <tr>
-            <th>Order ID</th>
-            <th>Recipient</th>
-            <th>Organisation</th>
-            <th>Product</th>
-            <th>Country</th>
-            <th>Status</th>
-            <th>Days until SLO</th>
-            <th>Jira</th>
+            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
           </tr>
         </thead>
-        <tbody id="tbody"></tbody>
+        <tbody id="tbody-cts"></tbody>
       </table>
     </div>
   </div>
 </main>
+</div>
 
-<!-- JIRA MODAL -->
+<!-- ===== CLICK TO HOME PANEL ===== -->
+<div id="panel-cth" class="tab-panel">
+<main class="main">
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">Total orders</div><div class="metric-value" id="m-total-cth">—</div><div class="metric-sub" id="m-orgs-cth">—</div></div>
+    <div class="metric danger"><div class="metric-label">Past SLO</div><div class="metric-value" id="m-late-cth">—</div><div class="metric-sub">overdue</div></div>
+    <div class="metric warn"><div class="metric-label">At risk</div><div class="metric-value" id="m-risk-cth">—</div><div class="metric-sub">due today or tomorrow</div></div>
+    <div class="metric"><div class="metric-label">Countries</div><div class="metric-value" id="m-countries-cth">—</div><div class="metric-sub" id="m-regions-sub-cth">regions active</div></div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-card-title">By status</div>
+      <div style="position:relative;height:160px"><canvas id="c-status-cth"></canvas></div>
+      <div class="legend" id="status-legend-cth"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">By category</div>
+      <div style="position:relative;height:220px"><canvas id="c-cat-cth"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">By country</div>
+      <div style="position:relative;height:220px"><canvas id="c-country-cth"></canvas></div>
+    </div>
+  </div>
+
+  <div class="table-section">
+    <div class="table-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="table-title">Order details</span>
+        <span class="table-count" id="row-count-cth">— rows</span>
+        <button class="copy-btn" id="copy-btn-cth" onclick="copyTable('cth')">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="9" height="11" rx="1.5"/><path d="M2 5v8a1.5 1.5 0 0 0 1.5 1.5H11"/></svg>
+          Copy table
+        </button>
+      </div>
+      <div class="filters">
+        <select class="filter-select" id="f-status-cth"><option value="">All statuses</option></select>
+        <select class="filter-select" id="f-region-cth"><option value="">All regions</option></select>
+        <select class="filter-select" id="f-cat-cth"><option value="">All categories</option></select>
+        <select class="filter-select" id="f-slo-cth"><option value="">All SLO</option><option value="late">Past SLO</option><option value="risk">At risk (0–1d)</option><option value="ok">On track</option></select>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-cth"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+</div>
+
+<!-- JIRA MODAL (shared) -->
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
   <div class="modal">
     <div class="modal-title">Create Jira ticket</div>
@@ -460,14 +551,27 @@
 </div>
 
 <script>
-const DATA = [{"id":"f565dab0-91bc-492a-9081-f656c4f0fd04","org":"Tanium","product":"XPS 9530 15-inch Ultra 7 32GB RAM 1TB SSD - French KB - Silver - EU Plug","recipient":"Nicolas Chartier","country":"FR","status":"Processing","slo":-3,"cat":"COMPUTER","region":"FR"},{"id":"2216df97-e8ee-47b3-91ff-88a70a56ac8a","org":"Verint Systems Inc","product":"Desk Mat Studio Series - mouse pad","recipient":"Bapi Vinnakota","country":"CA","status":"Ordered","slo":-2,"cat":"ERGONOMIC ACCESSORY","region":"CA"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Pro 16-inch M4 Max  16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - US English KB - Space Black - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"eca95e35-be93-49f8-a331-840dbe1f436f","org":"Verint Systems Inc","product":"Dual Wireless Charging Pad","recipient":"Siyong Zhu","country":"CA","status":"Ordered","slo":-2,"cat":"CHARGER","region":"CA"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Air 15-inch M4  10-Core CPU 10-Core GPU 24GB RAM 512GB SSD - US English KB - Midnight - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Pro 16-inch M4 Max  16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - US English KB - Space Black - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"2dd28c6d-826c-47b7-8793-8ce3c2108aea","org":"Wise","product":"YubiKey 5C NFC USB-C","recipient":"Perry Huijgen","country":"AU","status":"Approved","slo":-2,"cat":"SECURITY KEY","region":"AU"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"2dd28c6d-826c-47b7-8793-8ce3c2108aea","org":"Wise","product":"ThinkPad T14 14-inch (Gen 5) Ultra 5 125U 16GB RAM 512GB SSD - Intel Graphics - US English KB - Black - Windows 11 Pro - AU Plug","recipient":"Perry Huijgen","country":"AU","status":"Approved","slo":-2,"cat":"COMPUTER","region":"AU"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Pro 16-inch M4 Max  16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - US English KB - Space Black - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Air 15-inch M4  10-Core CPU 10-Core GPU 24GB RAM 512GB SSD - US English KB - Midnight - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"2216df97-e8ee-47b3-91ff-88a70a56ac8a","org":"Verint Systems Inc","product":"Adjustable Laptop Stand - Steel and Aluminum","recipient":"Bapi Vinnakota","country":"CA","status":"Ordered","slo":-2,"cat":"LAPTOP STAND","region":"CA"},{"id":"2216df97-e8ee-47b3-91ff-88a70a56ac8a","org":"Verint Systems Inc","product":"MX Anywhere 3 Wireless Mouse","recipient":"Bapi Vinnakota","country":"CA","status":"Ordered","slo":-2,"cat":"MOUSE","region":"CA"},{"id":"8124073e-b76b-48c2-8396-6a61134d0405","org":"Verint Systems Inc","product":"Dual Wireless Charging Pad","recipient":"Gabriel Vilas Boas","country":"BR","status":"Processing","slo":-1,"cat":"CHARGER","region":"BR"},{"id":"2a63237f-ea2f-4d21-bf22-2cfb527e297c","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 6) Ultra 7 155U 16GB RAM 512GB SSD - Fingerprint Reader - Intel Graphics - Portuguese KB - Black - Windows 11 Pro - BR Plug","recipient":"Diogo Baldo","country":"BR","status":"Processing","slo":-1,"cat":"COMPUTER","region":"BR"},{"id":"b28b90fc-3914-4503-ba84-16806f761a2f","org":"Braze","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 24GB RAM 512GB SSD - German KB - Space Black - EU Plug","recipient":"Berlin","country":"DE","status":"Ordered","slo":-1,"cat":"COMPUTER","region":"DE"},{"id":"b28b90fc-3914-4503-ba84-16806f761a2f","org":"Braze","product":"YubiKey 5C Nano","recipient":"Berlin","country":"DE","status":"Ordered","slo":-1,"cat":"SECURITY KEY","region":"DE"},{"id":"3d17da13-5777-48c6-b376-9a516ca5ff1e","org":"Crosby Legal","product":"MacBook Air 13-inch M5 10-Core CPU 10-Core GPU 24GB RAM 1TB SSD - US English KB - Silver - US/CA Plug","recipient":"Dare Benson","country":"US","status":"Ordered","slo":-1,"cat":"COMPUTER","region":"US"},{"id":"fa55ff6e-52b2-4dbb-b886-c182f31d8e03","org":"Verint Systems Inc","product":"Elite 85H Over-ear Headphones","recipient":"Ricardo Pardo","country":"BR","status":"Ordered","slo":0,"cat":"HEADSET","region":"BR"},{"id":"634c2f8b-ef57-4971-bce0-cdc8266a311f","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 2) Ryzen 7 16GB RAM 512GB SSD - Portuguese KB - Black","recipient":"Francieli da Silveira","country":"BR","status":"Processing","slo":0,"cat":"COMPUTER","region":"BR"},{"id":"02b2961b-5e1a-40bc-8671-c2327994209e","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 6) Ultra 5 125U 16GB RAM 512GB SSD - Intel Graphics - Spanish KB - Black - Windows 11 Pro - CL Plug","recipient":"Camilo Hernandez","country":"CL","status":"Processing","slo":0,"cat":"COMPUTER","region":"CL"},{"id":"ccbed1e2-31ae-4857-a679-3e09e952501d","org":"Neo 4 J","product":"MacBook Pro 16-inch M4 Max 16-Core CPU 40-Core GPU 48GB RAM 1TB SSD - US English KB - Space Black - BR Plug","recipient":"Alex Benjamin","country":"BR","status":"Processing","slo":0,"cat":"COMPUTER","region":"BR"},{"id":"4c221ac4-a1b5-4b79-93c6-a4ed82f6f1cc","org":"Moon Pay","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 24GB RAM 512GB SSD - US English KB - Space Black - MX/CO/PE Plug","recipient":"Andre Bendana","country":"MX","status":"Processing","slo":1,"cat":"COMPUTER","region":"MX"},{"id":"cc644eb1-e5d3-4e7d-bfc7-8e7eb640e15a","org":"Wise","product":"Evolve2 40 SE USB-C UC Stereo","recipient":"Vinay Das Akunuri","country":"IN","status":"Approved","slo":1,"cat":"HEADSET","region":"IN"},{"id":"cc644eb1-e5d3-4e7d-bfc7-8e7eb640e15a","org":"Wise","product":"M720 Wireless Mouse","recipient":"Vinay Das Akunuri","country":"IN","status":"Approved","slo":1,"cat":"MOUSE","region":"IN"},{"id":"05f7addf-633e-46c6-9705-0c5d04b9b8c4","org":"App Direct","product":"MacBook Air 13-inch M4 10-Core CPU 10-Core GPU 24GB RAM 512GB SSD - US English KB - Midnight - AR Plug","recipient":"Constantino Monteavaro","country":"AR","status":"Processing","slo":1,"cat":"COMPUTER","region":"AR"},{"id":"6680aebd-a007-43f8-99d1-bfb58aac232c","org":"Sovos","product":"EliteBook 840 14-inch (Gen 11) Ultra 7 155U 32GB RAM 1TB SSD Touch Screen - Fingerprint Reader - Intel Graphics - Spanish KB - Silver - Windows 11 Pro - CL Plug","recipient":"Kevin Martinez Mella","country":"CL","status":"Processing","slo":1,"cat":"COMPUTER","region":"CL"},{"id":"05f7addf-633e-46c6-9705-0c5d04b9b8c4","org":"App Direct","product":"Magic Mouse (USB-C) - White Multi-Touch Surface (LATAM)","recipient":"Constantino Monteavaro","country":"AR","status":"Processing","slo":1,"cat":"MOUSE","region":"AR"},{"id":"05f7addf-633e-46c6-9705-0c5d04b9b8c4","org":"App Direct","product":"Magic Keyboard with Touch ID for Mac models with Apple silicon (USB-C) - US English","recipient":"Constantino Monteavaro","country":"AR","status":"Processing","slo":1,"cat":"KEYBOARD","region":"AR"},{"id":"46d33888-3b3d-4f0a-94c6-5e8224796750","org":"Verint Systems Inc","product":"SD4750 Docking Station","recipient":"Milla Santana","country":"CA","status":"Ordered","slo":1,"cat":"DOCKING STATION","region":"CA"},{"id":"d4a67c8d-9e53-4424-9903-61d7b8e36ec3","org":"Sovos","product":"Pro 14 14-inch AMD Ryzen 7 250 32GB RAM 512GB SSD - Spanish KB - Silver - Windows 11 Pro - MX Plug","recipient":"Tania Herrera Osornio","country":"MX","status":"Processing","slo":1,"cat":"COMPUTER","region":"MX"},{"id":"4a9b65ca-4ab7-4a8b-8c7e-6048ec450478","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 3) Ryzen 7 5700U 16GB RAM 256GB SSD - Portuguese KB - Black","recipient":"Gabrielli Carvalho","country":"BR","status":"Processing","slo":1,"cat":"COMPUTER","region":"BR"},{"id":"cde468ea-9d3f-41bf-b475-94a7b4ca15cc","org":"Brightwheel","product":"15 15.6-inch Ryzen 5 7530U 16GB RAM 512GB SSD - US English KB - Black - Windows 11 Pro - PH Plug","recipient":"Eidrianne Angoluan","country":"PH","status":"Processing","slo":1,"cat":"COMPUTER","region":"PH"},{"id":"3f1a9271-3e0f-463d-803b-f4160a884d5d","org":"Carta","product":"MacBook Pro 16-inch M4 Max 16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - US English KB - Space Black - BR Plug","recipient":"Caio Bittencourt","country":"BR","status":"Processing","slo":1,"cat":"COMPUTER","region":"BR"},{"id":"cc644eb1-e5d3-4e7d-bfc7-8e7eb640e15a","org":"Wise","product":"Pebble Keys 2 K380S - US / English - Tonal Graphite (APAC)","recipient":"Vinay Das Akunuri","country":"IN","status":"Approved","slo":1,"cat":"KEYBOARD","region":"IN"},{"id":"cc644eb1-e5d3-4e7d-bfc7-8e7eb640e15a","org":"Wise","product":"MacBook Air 13-inch M4  10-Core CPU 8-Core GPU 16GB RAM 256GB SSD - US English KB - Silver - IN Plug","recipient":"Vinay Das Akunuri","country":"IN","status":"Approved","slo":1,"cat":"COMPUTER","region":"IN"},{"id":"ba2e7163-243a-43fe-ae09-f2ed693eec34","org":"Moon Pay","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 24GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Deepak Hegde","country":"IN","status":"Ordered","slo":1,"cat":"COMPUTER","region":"IN"},{"id":"9ab0c67d-172b-4916-90e6-4b441d198ae7","org":"Cloudflare","product":"MacBook Pro 16-inch M4 Pro 14-Core CPU 20-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Joydipto Banerjee","country":"IN","status":"Ordered","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"9ab0c67d-172b-4916-90e6-4b441d198ae7","org":"Cloudflare","product":"YubiKey 5C Nano FIPS","recipient":"Joydipto Banerjee","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"6d1fec63-6fbd-4b50-a2c4-58bcb36e0207","org":"Wise","product":"Pebble Keys 2 K380S - US / English - Tonal Graphite (APAC)","recipient":"Rishikesh Mahajan","country":"IN","status":"Approved","slo":2,"cat":"KEYBOARD","region":"IN"},{"id":"657c16c2-f936-4089-b7ab-a50305bbcb98","org":"Cloudflare","product":"YubiKey 5C NFC FIPS","recipient":"Noah SenthilKumar","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"c7bdd939-5929-400f-9658-1eedaba31ce8","org":"Cloudflare","product":"YubiKey 5C Nano FIPS","recipient":"Rahul Bharadwaj","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"0cbf2ee3-9a0c-4ba1-8411-aab6d893b74e","org":"SO Ci","product":"MacBook Air 13-inch M4  10-Core CPU 10-Core GPU 16GB RAM 512GB SSD - US English KB - Silver - US/CA Plug","recipient":"Toni He","country":"CA","status":"Processing","slo":2,"cat":"COMPUTER","region":"CA"},{"id":"0cbf2ee3-9a0c-4ba1-8411-aab6d893b74e","org":"SO Ci","product":"H390 USB Noise Cancelling Headset","recipient":"Toni He","country":"CA","status":"Processing","slo":2,"cat":"HEADSET","region":"CA"},{"id":"c7bdd939-5929-400f-9658-1eedaba31ce8","org":"Cloudflare","product":"YubiKey 5C NFC FIPS","recipient":"Rahul Bharadwaj","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"6d1fec63-6fbd-4b50-a2c4-58bcb36e0207","org":"Wise","product":"MacBook Air 13-inch M4  10-Core CPU 8-Core GPU 16GB RAM 256GB SSD - US English KB - Silver - IN Plug","recipient":"Rishikesh Mahajan","country":"IN","status":"Approved","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"97740a7d-9bae-4204-9e6e-35efe18c8028","org":"App Direct","product":"MX Master 3S for Business Wireless Mouse","recipient":"Amir Khaleghi","country":"CA","status":"Processing","slo":2,"cat":"MOUSE","region":"CA"},{"id":"97740a7d-9bae-4204-9e6e-35efe18c8028","org":"App Direct","product":"Magic Keyboard with Touch ID and Numeric Keypad for Mac models with Apple silicon (USB-C) - US English - White Keys","recipient":"Amir Khaleghi","country":"CA","status":"Processing","slo":2,"cat":"KEYBOARD","region":"CA"},{"id":"ba3ec87c-9202-413a-b71c-21a224f388b7","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 3) Ryzen 7 5700U 16GB RAM 256GB SSD - Portuguese KB - Black","recipient":"Leandro Kelps","country":"BR","status":"Ordered","slo":2,"cat":"COMPUTER","region":"BR"},{"id":"9ab0c67d-172b-4916-90e6-4b441d198ae7","org":"Cloudflare","product":"YubiKey 5C NFC FIPS","recipient":"Joydipto Banerjee","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"383f9100-8c9d-4766-a916-bab1826b2363","org":"Kraken Robotics","product":"ThinkPad L16 16-inch (Gen 2) Ultra 7 255U 16GB RAM 512GB SSD - Intel Graphics - US English KB - Black - Windows 11 Pro - US/CA Plug","recipient":"Allan Carter","country":"CA","status":"Processing","slo":2,"cat":"COMPUTER","region":"CA"},{"id":"93bab7e5-12ea-441c-90a1-655d03d511b6","org":"Kraken Robotics","product":"ThinkPad L16 16-inch (Gen 2) Ultra 7 255U 16GB RAM 512GB SSD - Intel Graphics - US English KB - Black - Windows 11 Pro - US/CA Plug","recipient":"Jacob Parsons","country":"CA","status":"Processing","slo":2,"cat":"COMPUTER","region":"CA"},{"id":"336c91b7-c9a4-4e31-b2bd-4db3179e27df","org":"York Solutions","product":"Latitude 5450 14-inch Ultra 5 125U 16GB RAM 512GB SSD - Fingerprint Reader - Intel Graphics - US English KB - Gray - Windows 11 Pro - IN Plug","recipient":"SARASWATI B. HIREMATH","country":"IN","status":"Ordered","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"84ed9b92-03f0-420d-8aa9-24d7a70f7973","org":"Ui Path","product":"ThinkPad X1 Carbon 14-inch (Gen 11) i7 16GB RAM 512GB SSD - US English KB - Deep Black - US/CA Plug","recipient":"Erick Chavarria","country":"MX","status":"Ordered","slo":2,"cat":"COMPUTER","region":"MX"},{"id":"6d1fec63-6fbd-4b50-a2c4-58bcb36e0207","org":"Wise","product":"M720 Wireless Mouse","recipient":"Rishikesh Mahajan","country":"IN","status":"Approved","slo":2,"cat":"MOUSE","region":"IN"},{"id":"0cbf2ee3-9a0c-4ba1-8411-aab6d893b74e","org":"SO Ci","product":"MK540 Advanced Keyboard & Mouse Set - US English","recipient":"Toni He","country":"CA","status":"Processing","slo":2,"cat":"MOUSE AND KEYBOARD","region":"CA"},{"id":"657c16c2-f936-4089-b7ab-a50305bbcb98","org":"Cloudflare","product":"YubiKey 5C Nano FIPS","recipient":"Noah SenthilKumar","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"97740a7d-9bae-4204-9e6e-35efe18c8028","org":"App Direct","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - US/CA Plug","recipient":"Amir Khaleghi","country":"CA","status":"Processing","slo":2,"cat":"COMPUTER","region":"CA"},{"id":"657c16c2-f936-4089-b7ab-a50305bbcb98","org":"Cloudflare","product":"MacBook Pro 16-inch M4 Pro 14-Core CPU 20-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Noah SenthilKumar","country":"IN","status":"Ordered","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"c7bdd939-5929-400f-9658-1eedaba31ce8","org":"Cloudflare","product":"MacBook Pro 16-inch M4 Pro 14-Core CPU 20-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Rahul Bharadwaj","country":"IN","status":"Ordered","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"4ab18e9b-f9f6-4889-a79b-fc3f2bee628b","org":"Benifex","product":"ThinkVision T27-40 27\" Monitor","recipient":"Trisha Salvador","country":"PH","status":"Processing","slo":2,"cat":"MONITOR","region":"PH"},{"id":"b4fdabbc-c825-41cb-89d9-2dd6b53a700a","org":"Braze","product":"MacBook Pro 14-inch M4 Pro  12-Core CPU 16-Core GPU 24GB RAM 512GB SSD - Japanese KB - Space Black - JP Plug","recipient":"Kota Mizozoe","country":"JP","status":"Ordered","slo":3,"cat":"COMPUTER","region":"JP"},{"id":"1bffc112-55e6-42c8-9a12-4484a012aa04","org":"Mary Ruths","product":"ThinkPad T14 14-inch (Gen 6) Ultra 5 235H vPro Enterprise 16GB RAM 512GB SSD - Fingerprint Reader - Intel Graphics - US English KB - Black - Windows 11 Pro - PH Plug","recipient":"Sai Sabido","country":"PH","status":"Ordered","slo":3,"cat":"COMPUTER","region":"PH"},{"id":"7ea8f99f-b44b-48f3-8d68-5f114e69926c","org":"Sentinel One","product":"MacBook Pro 16-inch M3 Pro 12-Core CPU 18-Core GPU 36GB RAM 1TB SSD - US English KB - Space Black - US/CA Plug","recipient":"Coco Wang","country":"SG","status":"Ordered","slo":3,"cat":"COMPUTER","region":"SG"},{"id":"62825321-6448-4e72-9d40-95c7ac7d9ba3","org":"Sentinel One","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 48GB RAM 1TB SSD - US English KB - Space Black - CR Plug","recipient":"Emmanuel Malavassi","country":"CR","status":"Ordered","slo":3,"cat":"COMPUTER","region":"CR"},{"id":"1a58ecee-de78-42f1-94c7-f791ec935d68","org":"Wise","product":"EarPods with 3.5mm Jack (APAC)","recipient":"Trineytra Prakasam","country":"MY","status":"Approved","slo":3,"cat":"HEADSET","region":"MY"},{"id":"a25cca09-abe7-43b3-8fa2-9ae2a90800f3","org":"Sentinel One","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 48GB RAM 1TB SSD - Hebrew English KB - Space Black - IL Plug","recipient":"Ofer Rant","country":"IL","status":"Ordered","slo":3,"cat":"COMPUTER","region":"IL"},{"id":"a9c07833-b451-447c-b71d-e0189f38e1bb","org":"Wise","product":"M720 Wireless Mouse","recipient":"Hanna Begam","country":"SG","status":"Approved","slo":3,"cat":"MOUSE","region":"SG"},{"id":"19e86ee8-cf73-4b08-81d7-1aabc56e7e19","org":"Velocity Global","product":"MacBook Air 13-inch M4  10-Core CPU 10-Core GPU 16GB RAM 512GB SSD - US English KB - Silver - US/CA Plug","recipient":"Revathi Varadarajalou","country":"CA","status":"Processing","slo":3,"cat":"COMPUTER","region":"CA"},{"id":"a9a564af-1d7b-43b1-9b42-b8677a03f628","org":"Benifex","product":"ThinkPad L14 14-inch (Gen 6) Ultra 5 235U vPro Enterprise 16GB RAM 512GB SSD - Fingerprint Reader - US English KB - Black - Windows 11 Pro - PH Plug","recipient":"Jean Ong","country":"PH","status":"Ordered","slo":3,"cat":"COMPUTER","region":"PH"},{"id":"a9a564af-1d7b-43b1-9b42-b8677a03f628","org":"Benifex","product":"ThinkVision T27-40 27\" Monitor","recipient":"Jean Ong","country":"PH","status":"Ordered","slo":3,"cat":"MONITOR","region":"PH"},{"id":"c15fd98f-8872-4b73-a1f5-4611468c43c4","org":"Sophos","product":"MacBook Pro 16-inch M4 Max 16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - Spanish KB - Space Black - MX/CO/CR/GT Plug","recipient":"Aaron Bugal","country":"AU","status":"Ordered","slo":3,"cat":"COMPUTER","region":"AU"},{"id":"6d0ed427-5ab7-4243-80de-3cc315b62cb0","org":"Sophos","product":"MacBook Pro 16-inch M4 Max 16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - Japanese KB - Silver - JP Plug","recipient":"He Wei","country":"JP","status":"Ordered","slo":3,"cat":"COMPUTER","region":"JP"},{"id":"76adc782-74ec-4c2f-a842-68e8f09e7f52","org":"Sophos","product":"ThinkPad P1 16-inch (Gen 7) i9 64GB RAM 2TB SSD - US English KB - Black - US/CA Plug","recipient":"Aaron Jacobs","country":"AU","status":"Ordered","slo":3,"cat":"COMPUTER","region":"AU"},{"id":"47e60fc9-3045-4e14-b1e9-601512b4b0a6","org":"Sophos","product":"ThinkPad P1 16-inch (Gen 7) i9 64GB RAM 2TB SSD - US English KB - Black - US/CA Plug","recipient":"Amit Khandelwal","country":"AU","status":"Ordered","slo":3,"cat":"COMPUTER","region":"AU"},{"id":"1a58ecee-de78-42f1-94c7-f791ec935d68","org":"Wise","product":"M720 Wireless Mouse","recipient":"Trineytra Prakasam","country":"MY","status":"Approved","slo":3,"cat":"MOUSE","region":"MY"},{"id":"a9a564af-1d7b-43b1-9b42-b8677a03f628","org":"Benifex","product":"ThinkVision T27-40 27\" Monitor","recipient":"Jean Ong","country":"PH","status":"Ordered","slo":3,"cat":"MONITOR","region":"PH"},{"id":"a0bdc9d7-16b3-4840-ba14-306232a2c230","org":"Astronomer","product":"MacBook Pro 16-inch M4 Pro 14-Core CPU 20-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Pankaj Singh","country":"IN","status":"Ordered","slo":4,"cat":"COMPUTER","region":"IN"}];
+// ---- DEFAULT DATA (Click To Ship) ----
+const DATA_CTS = [{"id":"f565dab0-91bc-492a-9081-f656c4f0fd04","org":"Tanium","product":"XPS 9530 15-inch Ultra 7 32GB RAM 1TB SSD - French KB - Silver - EU Plug","recipient":"Nicolas Chartier","country":"FR","status":"Processing","slo":-3,"cat":"COMPUTER","region":"FR"},{"id":"2216df97-e8ee-47b3-91ff-88a70a56ac8a","org":"Verint Systems Inc","product":"Desk Mat Studio Series - mouse pad","recipient":"Bapi Vinnakota","country":"CA","status":"Ordered","slo":-2,"cat":"ERGONOMIC ACCESSORY","region":"CA"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Pro 16-inch M4 Max  16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - US English KB - Space Black - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"eca95e35-be93-49f8-a331-840dbe1f436f","org":"Verint Systems Inc","product":"Dual Wireless Charging Pad","recipient":"Siyong Zhu","country":"CA","status":"Ordered","slo":-2,"cat":"CHARGER","region":"CA"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Air 15-inch M4  10-Core CPU 10-Core GPU 24GB RAM 512GB SSD - US English KB - Midnight - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Pro 16-inch M4 Max  16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - US English KB - Space Black - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"2dd28c6d-826c-47b7-8793-8ce3c2108aea","org":"Wise","product":"YubiKey 5C NFC USB-C","recipient":"Perry Huijgen","country":"AU","status":"Approved","slo":-2,"cat":"SECURITY KEY","region":"AU"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"2dd28c6d-826c-47b7-8793-8ce3c2108aea","org":"Wise","product":"ThinkPad T14 14-inch (Gen 5) Ultra 5 125U 16GB RAM 512GB SSD - Intel Graphics - US English KB - Black - Windows 11 Pro - AU Plug","recipient":"Perry Huijgen","country":"AU","status":"Approved","slo":-2,"cat":"COMPUTER","region":"AU"},{"id":"d18f5638-d588-4dc9-bab1-763c4f51f3c2","org":"Postman","product":"MX Master 3S for Business Wireless Mouse","recipient":"One Market - San Francisco HQ","country":"US","status":"Ordered","slo":-2,"cat":"MOUSE","region":"US"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Pro 16-inch M4 Max  16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - US English KB - Space Black - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"859bd3e7-594a-401b-ae5f-dd8de9f7916f","org":"Carta","product":"MacBook Air 15-inch M4  10-Core CPU 10-Core GPU 24GB RAM 512GB SSD - US English KB - Midnight - US/CA Plug","recipient":"Waterloo","country":"CA","status":"Ordered","slo":-2,"cat":"COMPUTER","region":"CA"},{"id":"2216df97-e8ee-47b3-91ff-88a70a56ac8a","org":"Verint Systems Inc","product":"Adjustable Laptop Stand - Steel and Aluminum","recipient":"Bapi Vinnakota","country":"CA","status":"Ordered","slo":-2,"cat":"LAPTOP STAND","region":"CA"},{"id":"2216df97-e8ee-47b3-91ff-88a70a56ac8a","org":"Verint Systems Inc","product":"MX Anywhere 3 Wireless Mouse","recipient":"Bapi Vinnakota","country":"CA","status":"Ordered","slo":-2,"cat":"MOUSE","region":"CA"},{"id":"8124073e-b76b-48c2-8396-6a61134d0405","org":"Verint Systems Inc","product":"Dual Wireless Charging Pad","recipient":"Gabriel Vilas Boas","country":"BR","status":"Processing","slo":-1,"cat":"CHARGER","region":"BR"},{"id":"2a63237f-ea2f-4d21-bf22-2cfb527e297c","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 6) Ultra 7 155U 16GB RAM 512GB SSD - Fingerprint Reader - Intel Graphics - Portuguese KB - Black - Windows 11 Pro - BR Plug","recipient":"Diogo Baldo","country":"BR","status":"Processing","slo":-1,"cat":"COMPUTER","region":"BR"},{"id":"b28b90fc-3914-4503-ba84-16806f761a2f","org":"Braze","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 24GB RAM 512GB SSD - German KB - Space Black - EU Plug","recipient":"Berlin","country":"DE","status":"Ordered","slo":-1,"cat":"COMPUTER","region":"DE"},{"id":"b28b90fc-3914-4503-ba84-16806f761a2f","org":"Braze","product":"YubiKey 5C Nano","recipient":"Berlin","country":"DE","status":"Ordered","slo":-1,"cat":"SECURITY KEY","region":"DE"},{"id":"3d17da13-5777-48c6-b376-9a516ca5ff1e","org":"Crosby Legal","product":"MacBook Air 13-inch M5 10-Core CPU 10-Core GPU 24GB RAM 1TB SSD - US English KB - Silver - US/CA Plug","recipient":"Dare Benson","country":"US","status":"Ordered","slo":-1,"cat":"COMPUTER","region":"US"},{"id":"fa55ff6e-52b2-4dbb-b886-c182f31d8e03","org":"Verint Systems Inc","product":"Elite 85H Over-ear Headphones","recipient":"Ricardo Pardo","country":"BR","status":"Ordered","slo":0,"cat":"HEADSET","region":"BR"},{"id":"634c2f8b-ef57-4971-bce0-cdc8266a311f","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 2) Ryzen 7 16GB RAM 512GB SSD - Portuguese KB - Black","recipient":"Francieli da Silveira","country":"BR","status":"Processing","slo":0,"cat":"COMPUTER","region":"BR"},{"id":"02b2961b-5e1a-40bc-8671-c2327994209e","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 6) Ultra 5 125U 16GB RAM 512GB SSD - Intel Graphics - Spanish KB - Black - Windows 11 Pro - CL Plug","recipient":"Camilo Hernandez","country":"CL","status":"Processing","slo":0,"cat":"COMPUTER","region":"CL"},{"id":"ccbed1e2-31ae-4857-a679-3e09e952501d","org":"Neo 4 J","product":"MacBook Pro 16-inch M4 Max 16-Core CPU 40-Core GPU 48GB RAM 1TB SSD - US English KB - Space Black - BR Plug","recipient":"Alex Benjamin","country":"BR","status":"Processing","slo":0,"cat":"COMPUTER","region":"BR"},{"id":"4c221ac4-a1b5-4b79-93c6-a4ed82f6f1cc","org":"Moon Pay","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 24GB RAM 512GB SSD - US English KB - Space Black - MX/CO/PE Plug","recipient":"Andre Bendana","country":"MX","status":"Processing","slo":1,"cat":"COMPUTER","region":"MX"},{"id":"cc644eb1-e5d3-4e7d-bfc7-8e7eb640e15a","org":"Wise","product":"Evolve2 40 SE USB-C UC Stereo","recipient":"Vinay Das Akunuri","country":"IN","status":"Approved","slo":1,"cat":"HEADSET","region":"IN"},{"id":"cc644eb1-e5d3-4e7d-bfc7-8e7eb640e15a","org":"Wise","product":"M720 Wireless Mouse","recipient":"Vinay Das Akunuri","country":"IN","status":"Approved","slo":1,"cat":"MOUSE","region":"IN"},{"id":"05f7addf-633e-46c6-9705-0c5d04b9b8c4","org":"App Direct","product":"MacBook Air 13-inch M4 10-Core CPU 10-Core GPU 24GB RAM 512GB SSD - US English KB - Midnight - AR Plug","recipient":"Constantino Monteavaro","country":"AR","status":"Processing","slo":1,"cat":"COMPUTER","region":"AR"},{"id":"6680aebd-a007-43f8-99d1-bfb58aac232c","org":"Sovos","product":"EliteBook 840 14-inch (Gen 11) Ultra 7 155U 32GB RAM 1TB SSD Touch Screen - Fingerprint Reader - Intel Graphics - Spanish KB - Silver - Windows 11 Pro - CL Plug","recipient":"Kevin Martinez Mella","country":"CL","status":"Processing","slo":1,"cat":"COMPUTER","region":"CL"},{"id":"05f7addf-633e-46c6-9705-0c5d04b9b8c4","org":"App Direct","product":"Magic Mouse (USB-C) - White Multi-Touch Surface (LATAM)","recipient":"Constantino Monteavaro","country":"AR","status":"Processing","slo":1,"cat":"MOUSE","region":"AR"},{"id":"05f7addf-633e-46c6-9705-0c5d04b9b8c4","org":"App Direct","product":"Magic Keyboard with Touch ID for Mac models with Apple silicon (USB-C) - US English","recipient":"Constantino Monteavaro","country":"AR","status":"Processing","slo":1,"cat":"KEYBOARD","region":"AR"},{"id":"46d33888-3b3d-4f0a-94c6-5e8224796750","org":"Verint Systems Inc","product":"SD4750 Docking Station","recipient":"Milla Santana","country":"CA","status":"Ordered","slo":1,"cat":"DOCKING STATION","region":"CA"},{"id":"d4a67c8d-9e53-4424-9903-61d7b8e36ec3","org":"Sovos","product":"Pro 14 14-inch AMD Ryzen 7 250 32GB RAM 512GB SSD - Spanish KB - Silver - Windows 11 Pro - MX Plug","recipient":"Tania Herrera Osornio","country":"MX","status":"Processing","slo":1,"cat":"COMPUTER","region":"MX"},{"id":"4a9b65ca-4ab7-4a8b-8c7e-6048ec450478","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 3) Ryzen 7 5700U 16GB RAM 256GB SSD - Portuguese KB - Black","recipient":"Gabrielli Carvalho","country":"BR","status":"Processing","slo":1,"cat":"COMPUTER","region":"BR"},{"id":"cde468ea-9d3f-41bf-b475-94a7b4ca15cc","org":"Brightwheel","product":"15 15.6-inch Ryzen 5 7530U 16GB RAM 512GB SSD - US English KB - Black - Windows 11 Pro - PH Plug","recipient":"Eidrianne Angoluan","country":"PH","status":"Processing","slo":1,"cat":"COMPUTER","region":"PH"},{"id":"3f1a9271-3e0f-463d-803b-f4160a884d5d","org":"Carta","product":"MacBook Pro 16-inch M4 Max 16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - US English KB - Space Black - BR Plug","recipient":"Caio Bittencourt","country":"BR","status":"Processing","slo":1,"cat":"COMPUTER","region":"BR"},{"id":"cc644eb1-e5d3-4e7d-bfc7-8e7eb640e15a","org":"Wise","product":"Pebble Keys 2 K380S - US / English - Tonal Graphite (APAC)","recipient":"Vinay Das Akunuri","country":"IN","status":"Approved","slo":1,"cat":"KEYBOARD","region":"IN"},{"id":"cc644eb1-e5d3-4e7d-bfc7-8e7eb640e15a","org":"Wise","product":"MacBook Air 13-inch M4  10-Core CPU 8-Core GPU 16GB RAM 256GB SSD - US English KB - Silver - IN Plug","recipient":"Vinay Das Akunuri","country":"IN","status":"Approved","slo":1,"cat":"COMPUTER","region":"IN"},{"id":"ba2e7163-243a-43fe-ae09-f2ed693eec34","org":"Moon Pay","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 24GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Deepak Hegde","country":"IN","status":"Ordered","slo":1,"cat":"COMPUTER","region":"IN"},{"id":"9ab0c67d-172b-4916-90e6-4b441d198ae7","org":"Cloudflare","product":"MacBook Pro 16-inch M4 Pro 14-Core CPU 20-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Joydipto Banerjee","country":"IN","status":"Ordered","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"9ab0c67d-172b-4916-90e6-4b441d198ae7","org":"Cloudflare","product":"YubiKey 5C Nano FIPS","recipient":"Joydipto Banerjee","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"6d1fec63-6fbd-4b50-a2c4-58bcb36e0207","org":"Wise","product":"Pebble Keys 2 K380S - US / English - Tonal Graphite (APAC)","recipient":"Rishikesh Mahajan","country":"IN","status":"Approved","slo":2,"cat":"KEYBOARD","region":"IN"},{"id":"657c16c2-f936-4089-b7ab-a50305bbcb98","org":"Cloudflare","product":"YubiKey 5C NFC FIPS","recipient":"Noah SenthilKumar","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"c7bdd939-5929-400f-9658-1eedaba31ce8","org":"Cloudflare","product":"YubiKey 5C Nano FIPS","recipient":"Rahul Bharadwaj","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"0cbf2ee3-9a0c-4ba1-8411-aab6d893b74e","org":"SO Ci","product":"MacBook Air 13-inch M4  10-Core CPU 10-Core GPU 16GB RAM 512GB SSD - US English KB - Silver - US/CA Plug","recipient":"Toni He","country":"CA","status":"Processing","slo":2,"cat":"COMPUTER","region":"CA"},{"id":"0cbf2ee3-9a0c-4ba1-8411-aab6d893b74e","org":"SO Ci","product":"H390 USB Noise Cancelling Headset","recipient":"Toni He","country":"CA","status":"Processing","slo":2,"cat":"HEADSET","region":"CA"},{"id":"c7bdd939-5929-400f-9658-1eedaba31ce8","org":"Cloudflare","product":"YubiKey 5C NFC FIPS","recipient":"Rahul Bharadwaj","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"6d1fec63-6fbd-4b50-a2c4-58bcb36e0207","org":"Wise","product":"MacBook Air 13-inch M4  10-Core CPU 8-Core GPU 16GB RAM 256GB SSD - US English KB - Silver - IN Plug","recipient":"Rishikesh Mahajan","country":"IN","status":"Approved","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"97740a7d-9bae-4204-9e6e-35efe18c8028","org":"App Direct","product":"MX Master 3S for Business Wireless Mouse","recipient":"Amir Khaleghi","country":"CA","status":"Processing","slo":2,"cat":"MOUSE","region":"CA"},{"id":"97740a7d-9bae-4204-9e6e-35efe18c8028","org":"App Direct","product":"Magic Keyboard with Touch ID and Numeric Keypad for Mac models with Apple silicon (USB-C) - US English - White Keys","recipient":"Amir Khaleghi","country":"CA","status":"Processing","slo":2,"cat":"KEYBOARD","region":"CA"},{"id":"ba3ec87c-9202-413a-b71c-21a224f388b7","org":"Sovos","product":"ThinkPad E14 14-inch (Gen 3) Ryzen 7 5700U 16GB RAM 256GB SSD - Portuguese KB - Black","recipient":"Leandro Kelps","country":"BR","status":"Ordered","slo":2,"cat":"COMPUTER","region":"BR"},{"id":"9ab0c67d-172b-4916-90e6-4b441d198ae7","org":"Cloudflare","product":"YubiKey 5C NFC FIPS","recipient":"Joydipto Banerjee","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"383f9100-8c9d-4766-a916-bab1826b2363","org":"Kraken Robotics","product":"ThinkPad L16 16-inch (Gen 2) Ultra 7 255U 16GB RAM 512GB SSD - Intel Graphics - US English KB - Black - Windows 11 Pro - US/CA Plug","recipient":"Allan Carter","country":"CA","status":"Processing","slo":2,"cat":"COMPUTER","region":"CA"},{"id":"93bab7e5-12ea-441c-90a1-655d03d511b6","org":"Kraken Robotics","product":"ThinkPad L16 16-inch (Gen 2) Ultra 7 255U 16GB RAM 512GB SSD - Intel Graphics - US English KB - Black - Windows 11 Pro - US/CA Plug","recipient":"Jacob Parsons","country":"CA","status":"Processing","slo":2,"cat":"COMPUTER","region":"CA"},{"id":"336c91b7-c9a4-4e31-b2bd-4db3179e27df","org":"York Solutions","product":"Latitude 5450 14-inch Ultra 5 125U 16GB RAM 512GB SSD - Fingerprint Reader - Intel Graphics - US English KB - Gray - Windows 11 Pro - IN Plug","recipient":"SARASWATI B. HIREMATH","country":"IN","status":"Ordered","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"84ed9b92-03f0-420d-8aa9-24d7a70f7973","org":"Ui Path","product":"ThinkPad X1 Carbon 14-inch (Gen 11) i7 16GB RAM 512GB SSD - US English KB - Deep Black - US/CA Plug","recipient":"Erick Chavarria","country":"MX","status":"Ordered","slo":2,"cat":"COMPUTER","region":"MX"},{"id":"6d1fec63-6fbd-4b50-a2c4-58bcb36e0207","org":"Wise","product":"M720 Wireless Mouse","recipient":"Rishikesh Mahajan","country":"IN","status":"Approved","slo":2,"cat":"MOUSE","region":"IN"},{"id":"0cbf2ee3-9a0c-4ba1-8411-aab6d893b74e","org":"SO Ci","product":"MK540 Advanced Keyboard & Mouse Set - US English","recipient":"Toni He","country":"CA","status":"Processing","slo":2,"cat":"MOUSE AND KEYBOARD","region":"CA"},{"id":"657c16c2-f936-4089-b7ab-a50305bbcb98","org":"Cloudflare","product":"YubiKey 5C Nano FIPS","recipient":"Noah SenthilKumar","country":"IN","status":"Ordered","slo":2,"cat":"SECURITY KEY","region":"IN"},{"id":"97740a7d-9bae-4204-9e6e-35efe18c8028","org":"App Direct","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - US/CA Plug","recipient":"Amir Khaleghi","country":"CA","status":"Processing","slo":2,"cat":"COMPUTER","region":"CA"},{"id":"657c16c2-f936-4089-b7ab-a50305bbcb98","org":"Cloudflare","product":"MacBook Pro 16-inch M4 Pro 14-Core CPU 20-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Noah SenthilKumar","country":"IN","status":"Ordered","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"c7bdd939-5929-400f-9658-1eedaba31ce8","org":"Cloudflare","product":"MacBook Pro 16-inch M4 Pro 14-Core CPU 20-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Rahul Bharadwaj","country":"IN","status":"Ordered","slo":2,"cat":"COMPUTER","region":"IN"},{"id":"4ab18e9b-f9f6-4889-a79b-fc3f2bee628b","org":"Benifex","product":"ThinkVision T27-40 27\" Monitor","recipient":"Trisha Salvador","country":"PH","status":"Processing","slo":2,"cat":"MONITOR","region":"PH"},{"id":"b4fdabbc-c825-41cb-89d9-2dd6b53a700a","org":"Braze","product":"MacBook Pro 14-inch M4 Pro  12-Core CPU 16-Core GPU 24GB RAM 512GB SSD - Japanese KB - Space Black - JP Plug","recipient":"Kota Mizozoe","country":"JP","status":"Ordered","slo":3,"cat":"COMPUTER","region":"JP"},{"id":"1bffc112-55e6-42c8-9a12-4484a012aa04","org":"Mary Ruths","product":"ThinkPad T14 14-inch (Gen 6) Ultra 5 235H vPro Enterprise 16GB RAM 512GB SSD - Fingerprint Reader - Intel Graphics - US English KB - Black - Windows 11 Pro - PH Plug","recipient":"Sai Sabido","country":"PH","status":"Ordered","slo":3,"cat":"COMPUTER","region":"PH"},{"id":"7ea8f99f-b44b-48f3-8d68-5f114e69926c","org":"Sentinel One","product":"MacBook Pro 16-inch M3 Pro 12-Core CPU 18-Core GPU 36GB RAM 1TB SSD - US English KB - Space Black - US/CA Plug","recipient":"Coco Wang","country":"SG","status":"Ordered","slo":3,"cat":"COMPUTER","region":"SG"},{"id":"62825321-6448-4e72-9d40-95c7ac7d9ba3","org":"Sentinel One","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 48GB RAM 1TB SSD - US English KB - Space Black - CR Plug","recipient":"Emmanuel Malavassi","country":"CR","status":"Ordered","slo":3,"cat":"COMPUTER","region":"CR"},{"id":"1a58ecee-de78-42f1-94c7-f791ec935d68","org":"Wise","product":"EarPods with 3.5mm Jack (APAC)","recipient":"Trineytra Prakasam","country":"MY","status":"Approved","slo":3,"cat":"HEADSET","region":"MY"},{"id":"a25cca09-abe7-43b3-8fa2-9ae2a90800f3","org":"Sentinel One","product":"MacBook Pro 14-inch M4 Pro 12-Core CPU 16-Core GPU 48GB RAM 1TB SSD - Hebrew English KB - Space Black - IL Plug","recipient":"Ofer Rant","country":"IL","status":"Ordered","slo":3,"cat":"COMPUTER","region":"IL"},{"id":"a9c07833-b451-447c-b71d-e0189f38e1bb","org":"Wise","product":"M720 Wireless Mouse","recipient":"Hanna Begam","country":"SG","status":"Approved","slo":3,"cat":"MOUSE","region":"SG"},{"id":"19e86ee8-cf73-4b08-81d7-1aabc56e7e19","org":"Velocity Global","product":"MacBook Air 13-inch M4  10-Core CPU 10-Core GPU 16GB RAM 512GB SSD - US English KB - Silver - US/CA Plug","recipient":"Revathi Varadarajalou","country":"CA","status":"Processing","slo":3,"cat":"COMPUTER","region":"CA"},{"id":"a9a564af-1d7b-43b1-9b42-b8677a03f628","org":"Benifex","product":"ThinkPad L14 14-inch (Gen 6) Ultra 5 235U vPro Enterprise 16GB RAM 512GB SSD - Fingerprint Reader - US English KB - Black - Windows 11 Pro - PH Plug","recipient":"Jean Ong","country":"PH","status":"Ordered","slo":3,"cat":"COMPUTER","region":"PH"},{"id":"a9a564af-1d7b-43b1-9b42-b8677a03f628","org":"Benifex","product":"ThinkVision T27-40 27\" Monitor","recipient":"Jean Ong","country":"PH","status":"Ordered","slo":3,"cat":"MONITOR","region":"PH"},{"id":"c15fd98f-8872-4b73-a1f5-4611468c43c4","org":"Sophos","product":"MacBook Pro 16-inch M4 Max 16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - Spanish KB - Space Black - MX/CO/CR/GT Plug","recipient":"Aaron Bugal","country":"AU","status":"Ordered","slo":3,"cat":"COMPUTER","region":"AU"},{"id":"6d0ed427-5ab7-4243-80de-3cc315b62cb0","org":"Sophos","product":"MacBook Pro 16-inch M4 Max 16-Core CPU 40-Core GPU 64GB RAM 1TB SSD - Japanese KB - Silver - JP Plug","recipient":"He Wei","country":"JP","status":"Ordered","slo":3,"cat":"COMPUTER","region":"JP"},{"id":"76adc782-74ec-4c2f-a842-68e8f09e7f52","org":"Sophos","product":"ThinkPad P1 16-inch (Gen 7) i9 64GB RAM 2TB SSD - US English KB - Black - US/CA Plug","recipient":"Aaron Jacobs","country":"AU","status":"Ordered","slo":3,"cat":"COMPUTER","region":"AU"},{"id":"47e60fc9-3045-4e14-b1e9-601512b4b0a6","org":"Sophos","product":"ThinkPad P1 16-inch (Gen 7) i9 64GB RAM 2TB SSD - US English KB - Black - US/CA Plug","recipient":"Amit Khandelwal","country":"AU","status":"Ordered","slo":3,"cat":"COMPUTER","region":"AU"},{"id":"1a58ecee-de78-42f1-94c7-f791ec935d68","org":"Wise","product":"M720 Wireless Mouse","recipient":"Trineytra Prakasam","country":"MY","status":"Approved","slo":3,"cat":"MOUSE","region":"MY"},{"id":"a9a564af-1d7b-43b1-9b42-b8677a03f628","org":"Benifex","product":"ThinkVision T27-40 27\" Monitor","recipient":"Jean Ong","country":"PH","status":"Ordered","slo":3,"cat":"MONITOR","region":"PH"},{"id":"a0bdc9d7-16b3-4840-ba14-306232a2c230","org":"Astronomer","product":"MacBook Pro 16-inch M4 Pro 14-Core CPU 20-Core GPU 48GB RAM 512GB SSD - US English KB - Space Black - IN Plug","recipient":"Pankaj Singh","country":"IN","status":"Ordered","slo":4,"cat":"COMPUTER","region":"IN"}];
 
-let allData = [...DATA];
-let raised = new Set();
-let raisedLinks = {};
-let currentRow = null;
-let charts = {};
+// ---- TAB STATE ----
+const tabs = {
+  cts: { data: [...DATA_CTS], raised: new Set(), raisedLinks: {}, charts: {}, currentRow: null },
+  cth: { data: [],            raised: new Set(), raisedLinks: {}, charts: {}, currentRow: null }
+};
+let activeTab = 'cts';
+let activeModalTab = 'cts';
 
+// ---- TAB SWITCHING ----
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + tab).classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ---- CSV PARSING ----
 function parseCSV(text) {
   const lines = text.trim().split('\n');
   const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
@@ -491,36 +595,41 @@ function parseCSV(text) {
   return rows.filter(r=>r.product);
 }
 
+// ---- CSV LOADING ----
 function loadCSV(evt) {
+  const tab = activeTab;
   const file = evt.target.files[0];
   if(!file) return;
   const reader = new FileReader();
   reader.onload = (e) => {
     try {
-      allData = parseCSV(e.target.result);
-      raised.clear();
-      buildFilters();
-      renderCharts();
-      refresh();
+      tabs[tab].data = parseCSV(e.target.result);
+      tabs[tab].raised.clear();
+      buildFilters(tab);
+      renderCharts(tab);
+      refresh(tab);
       document.getElementById('last-updated').textContent = 'Loaded: ' + file.name;
-      showToast('CSV loaded — ' + allData.length + ' rows', 'success');
+      showToast('CSV loaded — ' + tabs[tab].data.length + ' rows', 'success');
     } catch(err) { showToast('Could not parse CSV', 'error'); }
   };
   reader.readAsText(file);
   evt.target.value = '';
 }
 
+// ---- HELPERS ----
 function sloClass(v){ return v<0?'slo-late':v<=1?'slo-warn':'slo-ok'; }
 function sloText(v){ if(v<0) return Math.abs(v)+'d overdue'; if(v===0) return 'Due today'; return '+'+v+'d'; }
 function shortId(id){ return id.length>12?id.substring(0,8)+'…':id; }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function getFiltered(){
-  const fs=document.getElementById('f-status').value;
-  const fr=document.getElementById('f-region').value;
-  const fc=document.getElementById('f-cat').value;
-  const fslo=document.getElementById('f-slo').value;
-  return allData.filter(d=>{
+// ---- FILTERS ----
+function getFiltered(tab){
+  const t = tabs[tab];
+  const fs=document.getElementById('f-status-'+tab).value;
+  const fr=document.getElementById('f-region-'+tab).value;
+  const fc=document.getElementById('f-cat-'+tab).value;
+  const fslo=document.getElementById('f-slo-'+tab).value;
+  return t.data.filter(d=>{
     if(fs&&d.status!==fs) return false;
     if(fr&&d.region!==fr) return false;
     if(fc&&d.cat!==fc) return false;
@@ -531,52 +640,13 @@ function getFiltered(){
   });
 }
 
-function renderMetrics(data){
-  document.getElementById('m-total').textContent = data.length;
-  const orgs = new Set(data.map(d=>d.org)).size;
-  document.getElementById('m-orgs').textContent = orgs + ' organisations';
-  document.getElementById('m-late').textContent = data.filter(d=>d.slo<0).length;
-  document.getElementById('m-risk').textContent = data.filter(d=>d.slo>=0&&d.slo<=1).length;
-  const countries = new Set(data.map(d=>d.country)).size;
-  document.getElementById('m-countries').textContent = countries;
-  document.getElementById('m-regions-sub').textContent = new Set(data.map(d=>d.region)).size + ' regions active';
-  document.getElementById('row-count').textContent = data.length + ' rows';
-}
-
-function renderTable(data){
-  const tb = document.getElementById('tbody');
-  if(!data.length){ tb.innerHTML=`<tr><td colspan="8"><div class="empty-state"><p>No orders match the current filters.</p></div></td></tr>`; return; }
-  tb.innerHTML = data.map(r=>{
-    const key = r.id+'|'+r.product;
-    const isR = raised.has(key);
-    return `<tr>
-      <td class="mono" title="${esc(r.id)}">${esc(shortId(r.id))}</td>
-      <td>${esc(r.recipient)}</td>
-      <td style="color:var(--text2);font-size:12px">${esc(r.org)}</td>
-      <td class="trunc" title="${esc(r.product)}" style="font-size:12px">${esc(r.product)}</td>
-      <td style="font-weight:500">${esc(r.country)}</td>
-      <td><span class="badge b-${r.status.toLowerCase()}">${esc(r.status)}</span></td>
-      <td><span class="slo-pill ${sloClass(r.slo)}">${sloText(r.slo)}</span></td>
-      <td>${isR
-        ? `<button class="jira-btn raised"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l4 4 8-8"/></svg>Raised</button>`
-        : `<button class="jira-btn" onclick='openModal(${JSON.stringify(r)})'><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg>Create ticket</button>`
-      }</td>
-    </tr>`;
-  }).join('');
-}
-
-function refresh(){
-  const d = getFiltered();
-  renderMetrics(d);
-  renderTable(d);
-}
-
-function buildFilters(){
-  const statuses=[...new Set(allData.map(d=>d.status))];
-  const regions=[...new Set(allData.map(d=>d.region))].sort();
-  const cats=[...new Set(allData.map(d=>d.cat))].sort();
+function buildFilters(tab){
+  const t = tabs[tab];
+  const statuses=[...new Set(t.data.map(d=>d.status))];
+  const regions=[...new Set(t.data.map(d=>d.region))].sort();
+  const cats=[...new Set(t.data.map(d=>d.cat))].sort();
   const populate = (id, vals) => {
-    const sel=document.getElementById(id);
+    const sel=document.getElementById(id+'-'+tab);
     const cur=sel.value;
     while(sel.options.length>1) sel.remove(1);
     vals.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
@@ -587,40 +657,90 @@ function buildFilters(){
   populate('f-cat', cats);
 }
 
-function renderCharts(){
+// ---- METRICS ----
+function renderMetrics(data, tab){
+  const noData = tabs[tab].data.length === 0;
+  document.getElementById('m-total-'+tab).textContent = noData ? '—' : data.length;
+  document.getElementById('m-orgs-'+tab).textContent = noData ? '—' : new Set(data.map(d=>d.org)).size + ' organisations';
+  document.getElementById('m-late-'+tab).textContent = noData ? '—' : data.filter(d=>d.slo<0).length;
+  document.getElementById('m-risk-'+tab).textContent = noData ? '—' : data.filter(d=>d.slo>=0&&d.slo<=1).length;
+  document.getElementById('m-countries-'+tab).textContent = noData ? '—' : new Set(data.map(d=>d.country)).size;
+  document.getElementById('m-regions-sub-'+tab).textContent = noData ? 'regions active' : new Set(data.map(d=>d.region)).size + ' regions active';
+  document.getElementById('row-count-'+tab).textContent = noData ? '— rows' : data.length + ' rows';
+}
+
+// ---- TABLE ----
+function renderTable(data, tab){
+  const t = tabs[tab];
+  const tb = document.getElementById('tbody-'+tab);
+  if(!data.length){
+    const msg = t.data.length === 0
+      ? 'Upload a CSV to load orders for this tab.'
+      : 'No orders match the current filters.';
+    tb.innerHTML=`<tr><td colspan="8"><div class="empty-state"><p>${msg}</p></div></td></tr>`;
+    return;
+  }
+  tb.innerHTML = data.map(r=>{
+    const key = r.id+'|'+r.product;
+    const isR = t.raised.has(key);
+    return `<tr>
+      <td class="mono" title="${esc(r.id)}">${esc(shortId(r.id))}</td>
+      <td>${esc(r.recipient)}</td>
+      <td style="color:var(--text2);font-size:12px">${esc(r.org)}</td>
+      <td class="trunc" title="${esc(r.product)}" style="font-size:12px">${esc(r.product)}</td>
+      <td style="font-weight:500">${esc(r.country)}</td>
+      <td><span class="badge b-${r.status.toLowerCase()}">${esc(r.status)}</span></td>
+      <td><span class="slo-pill ${sloClass(r.slo)}">${sloText(r.slo)}</span></td>
+      <td>${isR
+        ? `<button class="jira-btn raised"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l4 4 8-8"/></svg>Raised</button>`
+        : `<button class="jira-btn" onclick='openModal(${JSON.stringify(r)},"${tab}")'><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M8 5v6"/></svg>Create ticket</button>`
+      }</td>
+    </tr>`;
+  }).join('');
+}
+
+// ---- REFRESH ----
+function refresh(tab){
+  const d = getFiltered(tab);
+  renderMetrics(d, tab);
+  renderTable(d, tab);
+}
+
+// ---- CHARTS ----
+function renderCharts(tab){
+  const t = tabs[tab];
   const statusColors={Processing:'#2563eb',Ordered:'#16a34a',Approved:'#d97706'};
   const sCounts={};
-  allData.forEach(d=>{sCounts[d.status]=(sCounts[d.status]||0)+1;});
+  t.data.forEach(d=>{sCounts[d.status]=(sCounts[d.status]||0)+1;});
   const sLabels=Object.keys(sCounts);
 
-  const legend=document.getElementById('status-legend');
+  const legend=document.getElementById('status-legend-'+tab);
   legend.innerHTML=sLabels.map(s=>`<div class="legend-item"><div class="legend-left"><span class="legend-dot" style="background:${statusColors[s]||'#888'}"></span><span class="legend-name">${s}</span></div><span class="legend-count">${sCounts[s]}</span></div>`).join('');
 
-  if(charts.status) charts.status.destroy();
-  charts.status = new Chart(document.getElementById('c-status'),{type:'doughnut',data:{labels:sLabels,datasets:[{data:sLabels.map(s=>sCounts[s]),backgroundColor:sLabels.map(s=>statusColors[s]||'#888'),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:(c)=>` ${c.label}: ${c.raw}`}}}}});
+  if(t.charts.status) t.charts.status.destroy();
+  t.charts.status = new Chart(document.getElementById('c-status-'+tab),{type:'doughnut',data:{labels:sLabels,datasets:[{data:sLabels.map(s=>sCounts[s]),backgroundColor:sLabels.map(s=>statusColors[s]||'#888'),borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:(c)=>` ${c.label}: ${c.raw}`}}}}});
 
   const catCounts={};
-  allData.forEach(d=>{catCounts[d.cat]=(catCounts[d.cat]||0)+1;});
+  t.data.forEach(d=>{catCounts[d.cat]=(catCounts[d.cat]||0)+1;});
   const sortedCats=Object.entries(catCounts).sort((a,b)=>b[1]-a[1]);
   const catColors=['#2563eb','#16a34a','#d97706','#dc2626','#7c3aed','#0891b2','#059669','#9f1239','#92400e','#1e40af','#065f46'];
 
-  if(charts.cat) charts.cat.destroy();
-  charts.cat = new Chart(document.getElementById('c-cat'),{type:'bar',data:{labels:sortedCats.map(c=>c[0]),datasets:[{data:sortedCats.map(c=>c[1]),backgroundColor:catColors,borderWidth:0,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f0efe9'},ticks:{font:{size:11,family:'DM Mono'}}},y:{grid:{display:false},ticks:{font:{size:10,family:'DM Sans'}}}}}});
+  if(t.charts.cat) t.charts.cat.destroy();
+  t.charts.cat = new Chart(document.getElementById('c-cat-'+tab),{type:'bar',data:{labels:sortedCats.map(c=>c[0]),datasets:[{data:sortedCats.map(c=>c[1]),backgroundColor:catColors,borderWidth:0,borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#f0efe9'},ticks:{font:{size:11,family:'DM Mono'}}},y:{grid:{display:false},ticks:{font:{size:10,family:'DM Sans'}}}}}});
 
   const countryCounts={};
-  allData.forEach(d=>{countryCounts[d.country]=(countryCounts[d.country]||0)+1;});
+  t.data.forEach(d=>{countryCounts[d.country]=(countryCounts[d.country]||0)+1;});
   const sortedCountries=Object.entries(countryCounts).sort((a,b)=>b[1]-a[1]).slice(0,12);
 
-  if(charts.country) charts.country.destroy();
-  charts.country = new Chart(document.getElementById('c-country'),{type:'bar',data:{labels:sortedCountries.map(c=>c[0]),datasets:[{data:sortedCountries.map(c=>c[1]),backgroundColor:'#2563eb',borderWidth:0,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:11,family:'DM Mono'},autoSkip:false}},y:{grid:{color:'#f0efe9'},ticks:{stepSize:1,font:{size:11,family:'DM Mono'}}}}}});
+  if(t.charts.country) t.charts.country.destroy();
+  t.charts.country = new Chart(document.getElementById('c-country-'+tab),{type:'bar',data:{labels:sortedCountries.map(c=>c[0]),datasets:[{data:sortedCountries.map(c=>c[1]),backgroundColor:'#2563eb',borderWidth:0,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{font:{size:11,family:'DM Mono'},autoSkip:false}},y:{grid:{color:'#f0efe9'},ticks:{stepSize:1,font:{size:11,family:'DM Mono'}}}}}});
 }
 
-// MODAL
+// ---- JIRA ----
 const JIRA_BASE = 'https://appdirect.jira.com';
 const JIRA_PROJECT_ID = '28978';
 const JIRA_ISSUE_TYPE_ID = '3';
 
-// Detect current user on page load — works for anyone logged into Jira
 let currentUserId = null;
 fetch(`${JIRA_BASE}/rest/api/2/myself`, {credentials:'include'})
   .then(r => r.ok ? r.json() : Promise.reject('not logged in'))
@@ -648,8 +768,9 @@ function sloLabel(slo) {
   return `${slo} day(s) remaining`;
 }
 
-function openModal(row){
-  currentRow = row;
+function openModal(row, tab){
+  activeModalTab = tab;
+  tabs[tab].currentRow = row;
   const label = sloLabel(row.slo);
   document.getElementById('modal-sub').textContent = `${row.org} · ${row.country} · SLO: ${label}`;
   document.getElementById('m-summary').value = `[Outbound SLO] ${row.recipient} — ${row.org} (${row.country}) | ${row.id}`;
@@ -662,7 +783,6 @@ function openModal(row){
 async function loadAssignees(){
   const sel = document.getElementById('m-assignee');
   if(sel.dataset.loaded === 'true') {
-    // Re-apply current user default each time modal opens
     if(currentUserId) {
       const match = sel.querySelector(`option[value="${currentUserId}"]`);
       if(match) sel.value = currentUserId;
@@ -685,10 +805,7 @@ async function loadAssignees(){
     }
     if(all.length === 0) throw new Error('No users returned');
     all.sort((a,b) => a.displayName.localeCompare(b.displayName));
-    sel.innerHTML = all.map(u =>
-      `<option value="${u.accountId}">${u.displayName}</option>`
-    ).join('');
-    // Default to whoever is currently logged in
+    sel.innerHTML = all.map(u => `<option value="${u.accountId}">${u.displayName}</option>`).join('');
     if(currentUserId) {
       const match = sel.querySelector(`option[value="${currentUserId}"]`);
       if(match) sel.value = currentUserId;
@@ -703,11 +820,13 @@ async function loadAssignees(){
 function closeModal(e){
   if(e && e.target !== document.getElementById('modal-overlay')) return;
   document.getElementById('modal-overlay').classList.remove('open');
-  currentRow = null;
+  if(activeModalTab) tabs[activeModalTab].currentRow = null;
 }
 
 async function createTicket(){
-  if(!currentRow) return;
+  const tab = activeModalTab;
+  const t = tabs[tab];
+  if(!t.currentRow) return;
   const btn = document.getElementById('create-btn');
   const summary = document.getElementById('m-summary').value.trim();
   const desc = document.getElementById('m-desc').value.trim();
@@ -737,14 +856,13 @@ async function createTicket(){
     });
     const data = await res.json();
     if (res.ok && data.key) {
-      const key = currentRow.id+'|'+currentRow.product;
-      raised.add(key);
-      raised.set ? null : (raised.links = raised.links||{});
-      raisedLinks[key] = `${JIRA_BASE}/browse/${data.key}`;
+      const key = t.currentRow.id+'|'+t.currentRow.product;
+      t.raised.add(key);
+      t.raisedLinks[key] = `${JIRA_BASE}/browse/${data.key}`;
       document.getElementById('modal-overlay').classList.remove('open');
-      refresh();
+      refresh(tab);
       showToast(`Ticket ${data.key} created`, 'success', `${JIRA_BASE}/browse/${data.key}`);
-      currentRow = null;
+      t.currentRow = null;
     } else {
       const msg = data.errors ? Object.values(data.errors).join(', ') : (data.errorMessages||['Unknown error']).join(', ');
       showToast('Jira error: ' + msg, 'error');
@@ -757,6 +875,7 @@ async function createTicket(){
   }
 }
 
+// ---- TOAST ----
 function showToast(msg, type='', link=''){
   const t = document.getElementById('toast');
   const m = document.getElementById('toast-msg');
@@ -772,20 +891,18 @@ function showToast(msg, type='', link=''){
 
 document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
 
-function copyTable(){
-  const data = getFiltered();
+// ---- COPY TABLE ----
+function copyTable(tab){
+  const data = getFiltered(tab);
   if(!data.length){ showToast('No rows to copy', ''); return; }
   const headers = ['Order ID', 'Recipient', 'Organisation', 'Country', 'Days Until SLO'];
   const rows = data.map(r => [
-    r.id,
-    r.recipient,
-    r.org,
-    r.country,
+    r.id, r.recipient, r.org, r.country,
     r.slo < 0 ? r.slo + 'd overdue' : r.slo === 0 ? 'Due today' : '+' + r.slo + 'd'
   ]);
   const tsv = [headers, ...rows].map(row => row.join('\t')).join('\n');
   navigator.clipboard.writeText(tsv).then(() => {
-    const btn = document.getElementById('copy-btn');
+    const btn = document.getElementById('copy-btn-'+tab);
     btn.classList.add('copied');
     btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l4 4 8-8"/></svg> Copied ' + data.length + ' rows';
     setTimeout(() => {
@@ -795,17 +912,20 @@ function copyTable(){
   }).catch(() => showToast('Copy failed — try again', 'error'));
 }
 
-// Wire filter listeners explicitly (more reliable than inline onchange)
-['f-status','f-region','f-cat','f-slo'].forEach(id => {
-  document.getElementById(id).addEventListener('change', refresh);
+// ---- FILTER LISTENERS ----
+['cts', 'cth'].forEach(tab => {
+  ['f-status', 'f-region', 'f-cat', 'f-slo'].forEach(id => {
+    document.getElementById(id+'-'+tab).addEventListener('change', () => refresh(tab));
+  });
 });
 
-// Init
+// ---- INIT ----
 document.getElementById('last-updated').textContent = 'Loaded: default data (82 rows)';
-buildFilters();
-renderCharts();
-refresh();
+buildFilters('cts');
+renderCharts('cts');
+refresh('cts');
+renderCharts('cth');
+refresh('cth');
 </script>
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </body>
 </html>
