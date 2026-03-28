@@ -214,7 +214,8 @@
 
   .mono { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text3); }
   .trunc { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .notes-cell { max-width: 220px; white-space: normal; word-break: break-word; font-size: 12px; color: var(--text2); line-height: 1.4; }
+  .notes-cell { width: 220px; min-width: 220px; max-width: 220px; white-space: normal; word-break: break-word; font-size: 12px; color: var(--text2); line-height: 1.4; }
+  th.notes-th { width: 220px; min-width: 220px; }
   .tracking-link { font-size: 11px; color: var(--blue); max-width: 160px; display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
   .tracking-link:hover { text-decoration: underline; }
 
@@ -469,7 +470,7 @@
       <table>
         <thead>
           <tr>
-            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th>Notes</th><th>Tracking</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
+            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th class="notes-th">Notes</th><th>Tracking</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
           </tr>
         </thead>
         <tbody id="tbody-cts"></tbody>
@@ -526,7 +527,7 @@
       <table>
         <thead>
           <tr>
-            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th>Notes</th><th>Tracking</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
+            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th class="notes-th">Notes</th><th>Tracking</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
           </tr>
         </thead>
         <tbody id="tbody-cth"></tbody>
@@ -644,9 +645,25 @@ function switchTab(tab) {
 }
 
 // ---- CSV PARSING ----
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQ && line[i+1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (ch === ',' && !inQ) {
+      result.push(cur.trim()); cur = '';
+    } else { cur += ch; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
 function parseCSV(text) {
-  const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.replace(/"/g,'').trim());
+  const lines = text.trim().split(/\r?\n/);
+  const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g,'').trim());
   const find = (names) => { for(const n of names){ const i=headers.findIndex(h=>h.toLowerCase()===n.toLowerCase()); if(i>=0) return i; } return -1; };
   const iId = find(['Order ID','order id']);
   const iOrg = find(['Organization name','organization name','org']);
@@ -658,10 +675,11 @@ function parseCSV(text) {
   const iCat = find(['Category','category']);
   const iRegion = find(['Region code','region code','region']);
   const iNotes = find(['Notes','notes','note','comments','Comments']);
-  const iTracking = find(['Tracking Link','tracking link','Tracking URL','tracking url','tracking','Tracking']);
+  const iTracking = find(['Tracking link','Tracking Link','tracking link','Tracking URL','tracking url','tracking','Tracking']);
   const rows = [];
   for(let i=1;i<lines.length;i++){
-    const cols = lines[i].match(/(".*?"|[^,]+|(?<=,)(?=,)|(?<=,)$|^(?=,))/g)||[];
+    if(!lines[i].trim()) continue;
+    const cols = parseCSVLine(lines[i]);
     const g = (idx) => idx>=0&&idx<cols.length ? cols[idx].replace(/^"|"$/g,'').trim() : '';
     const sloVal = parseInt(g(iSlo));
     rows.push({id:g(iId)||`row-${i}`,org:g(iOrg),product:g(iProd),recipient:g(iRec),country:g(iCountry),status:g(iStatus),slo:isNaN(sloVal)?0:sloVal,cat:g(iCat),region:g(iRegion)||g(iCountry),notes:g(iNotes),tracking:g(iTracking)});
