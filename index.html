@@ -214,6 +214,9 @@
 
   .mono { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text3); }
   .trunc { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .notes-cell { max-width: 220px; white-space: normal; word-break: break-word; font-size: 12px; color: var(--text2); line-height: 1.4; }
+  .tracking-link { font-size: 11px; color: var(--blue); max-width: 160px; display: inline-block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  .tracking-link:hover { text-decoration: underline; }
 
   /* BADGES */
   .badge {
@@ -466,7 +469,7 @@
       <table>
         <thead>
           <tr>
-            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
+            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th>Notes</th><th>Tracking</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
           </tr>
         </thead>
         <tbody id="tbody-cts"></tbody>
@@ -523,7 +526,7 @@
       <table>
         <thead>
           <tr>
-            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
+            <th>Order ID</th><th>Recipient</th><th>Organisation</th><th>Product</th><th>Notes</th><th>Tracking</th><th>Country</th><th>Status</th><th>Days until SLO</th><th>Jira</th>
           </tr>
         </thead>
         <tbody id="tbody-cth"></tbody>
@@ -654,12 +657,14 @@ function parseCSV(text) {
   const iSlo = find(['Days Until SLO','days until slo','slo']);
   const iCat = find(['Category','category']);
   const iRegion = find(['Region code','region code','region']);
+  const iNotes = find(['Notes','notes','note','comments','Comments']);
+  const iTracking = find(['Tracking Link','tracking link','Tracking URL','tracking url','tracking','Tracking']);
   const rows = [];
   for(let i=1;i<lines.length;i++){
     const cols = lines[i].match(/(".*?"|[^,]+|(?<=,)(?=,)|(?<=,)$|^(?=,))/g)||[];
     const g = (idx) => idx>=0&&idx<cols.length ? cols[idx].replace(/^"|"$/g,'').trim() : '';
     const sloVal = parseInt(g(iSlo));
-    rows.push({id:g(iId)||`row-${i}`,org:g(iOrg),product:g(iProd),recipient:g(iRec),country:g(iCountry),status:g(iStatus),slo:isNaN(sloVal)?0:sloVal,cat:g(iCat),region:g(iRegion)||g(iCountry)});
+    rows.push({id:g(iId)||`row-${i}`,org:g(iOrg),product:g(iProd),recipient:g(iRec),country:g(iCountry),status:g(iStatus),slo:isNaN(sloVal)?0:sloVal,cat:g(iCat),region:g(iRegion)||g(iCountry),notes:g(iNotes),tracking:g(iTracking)});
   }
   return rows.filter(r=>r.product);
 }
@@ -746,7 +751,7 @@ function renderTable(data, tab){
     const msg = t.data.length === 0
       ? 'Upload a CSV to load orders for this tab.'
       : 'No orders match the current filters.';
-    tb.innerHTML=`<tr><td colspan="8"><div class="empty-state"><p>${msg}</p></div></td></tr>`;
+    tb.innerHTML=`<tr><td colspan="10"><div class="empty-state"><p>${msg}</p></div></td></tr>`;
     return;
   }
   tb.innerHTML = data.map(r=>{
@@ -757,6 +762,8 @@ function renderTable(data, tab){
       <td>${esc(r.recipient)}</td>
       <td style="color:var(--text2);font-size:12px">${esc(r.org)}</td>
       <td class="trunc" title="${esc(r.product)}" style="font-size:12px">${esc(r.product)}</td>
+      <td class="notes-cell">${esc(r.notes||'')}</td>
+      <td>${r.tracking ? `<a href="${esc(r.tracking)}" target="_blank" class="tracking-link" title="${esc(r.tracking)}">${esc(r.tracking)}</a>` : ''}</td>
       <td style="font-weight:500">${esc(r.country)}</td>
       <td><span class="badge b-${r.status.toLowerCase()}">${esc(r.status)}</span></td>
       <td><span class="slo-pill ${sloClass(r.slo)}">${sloText(r.slo)}</span></td>
@@ -999,9 +1006,9 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') { closeModal();
 function copyTable(tab){
   const data = getFiltered(tab);
   if(!data.length){ showToast('No rows to copy', ''); return; }
-  const headers = ['Order ID', 'Recipient', 'Organisation', 'Country', 'Days Until SLO'];
+  const headers = ['Order ID', 'Recipient', 'Organisation', 'Product', 'Notes', 'Tracking', 'Country', 'Days Until SLO'];
   const rows = data.map(r => [
-    r.id, r.recipient, r.org, r.country,
+    r.id, r.recipient, r.org, r.product, r.notes||'', r.tracking||'', r.country,
     r.slo < 0 ? r.slo + 'd overdue' : r.slo === 0 ? 'Due today' : '+' + r.slo + 'd'
   ]);
   const tsv = [headers, ...rows].map(row => row.join('\t')).join('\n');
