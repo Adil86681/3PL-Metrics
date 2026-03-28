@@ -740,9 +740,12 @@ function renderCharts(tab){
 const JIRA_BASE = 'https://appdirect.jira.com';
 const JIRA_PROJECT_ID = '28978';
 const JIRA_ISSUE_TYPE_ID = '3';
+const JIRA_EMAIL = 'adil.khan@appdirect.com';
+const JIRA_TOKEN = 'ATATT3xFfGF0PouXMrJGxinmxOTp23qNcmswTOSTy59U0Jy3-qN3cACOr6J0ug9yx4m12Lne-FbR5DK9G4AfJeYSnedTMF8OsBIlkYpN2chmHF8duFixTU0YP425UZNrrADjvEAPTdXiOGxrXsZNsw8z6cd6PyViKhxN_8N-9OpWjYcyeLwWaUU=BCD11176';
+const JIRA_AUTH = 'Basic ' + btoa(JIRA_EMAIL + ':' + JIRA_TOKEN);
 
 let currentUserId = null;
-fetch(`${JIRA_BASE}/rest/api/2/myself`, {credentials:'include'})
+fetch(`${JIRA_BASE}/rest/api/2/myself`, {headers:{'Authorization':JIRA_AUTH}})
   .then(r => r.ok ? r.json() : Promise.reject('not logged in'))
   .then(u => {
     if(u && u.accountId) {
@@ -756,7 +759,7 @@ fetch(`${JIRA_BASE}/rest/api/2/myself`, {credentials:'include'})
   })
   .catch(() => {
     const el = document.getElementById('jira-status');
-    el.textContent = '⚠ Not logged into Jira';
+    el.textContent = '⚠ Jira auth failed';
     el.style.display = 'inline';
     el.style.background = 'rgba(220,38,38,0.2)';
     el.style.color = '#fca5a5';
@@ -794,7 +797,7 @@ async function loadAssignees(){
     let all = [];
     let start = 0;
     while(true) {
-      const res = await fetch(`${JIRA_BASE}/rest/api/2/user/assignable/search?project=COT&maxResults=200&startAt=${start}`, {credentials:'include'});
+      const res = await fetch(`${JIRA_BASE}/rest/api/2/user/assignable/search?project=COT&maxResults=200&startAt=${start}`, {headers:{'Authorization':JIRA_AUTH}});
       if(!res.ok) throw new Error('HTTP ' + res.status);
       const batch = await res.json();
       if(!Array.isArray(batch) || batch.length === 0) break;
@@ -812,7 +815,7 @@ async function loadAssignees(){
     }
     sel.dataset.loaded = 'true';
   } catch(e) {
-    sel.innerHTML = '<option value="">Could not load — are you logged into Jira?</option>';
+    sel.innerHTML = '<option value="">Could not load assignees</option>';
     console.error('Assignee fetch failed:', e);
   }
 }
@@ -850,8 +853,7 @@ async function createTicket(){
   try {
     const res = await fetch(`${JIRA_BASE}/rest/api/2/issue`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': JIRA_AUTH },
       body: JSON.stringify(payload)
     });
     const data = await res.json();
@@ -868,7 +870,7 @@ async function createTicket(){
       showToast('Jira error: ' + msg, 'error');
     }
   } catch(err) {
-    showToast('Network error — are you logged into Jira?', 'error');
+    showToast('Network error — could not reach Jira', 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4.5"/><path d="M8 8l5-5M10 3h3v3"/></svg> Create in Jira';
