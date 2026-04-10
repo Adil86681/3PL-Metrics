@@ -134,6 +134,10 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 /* JIRA TICKET */
 .jira-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-family: "DM Mono", monospace; font-size: 0.55rem; padding: 3px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
 .jira-btn:hover { border-color: #2684FF; color: #2684FF; }
+.jira-btn-view { background: transparent; border: 1px solid #2684FF; color: #2684FF; font-family: "DM Mono", monospace; font-size: 0.55rem; padding: 3px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+.jira-btn-view:hover { background: rgba(38,132,255,0.1); }
+.notes-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.6rem; color: var(--muted); }
+.notes-cell:hover { white-space: normal; word-break: break-word; }
 .jira-modal-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .jira-modal-label { font-size: 0.56rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .jira-modal-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: "DM Mono", monospace; font-size: 0.68rem; padding: 8px 10px; border-radius: 6px; width: 100%; }
@@ -395,6 +399,23 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
   </div>
 </div>
 
+<!-- VIEW TICKET MODAL -->
+<div id="viewTicketModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;width:540px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-family:Syne,sans-serif;font-weight:700;font-size:1rem;display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12.005 2C6.486 2 2 6.486 2 12.005S6.486 22.01 12.005 22.01 22.01 17.524 22.01 12.005 17.524 2 12.005 2z" fill="#2684FF"/><path d="M10.086 16.789l-.003-.003a.686.686 0 01-.196-.487c0-.188.074-.368.206-.501l2.831-2.793-2.831-2.793a.714.714 0 010-1.001.714.714 0 011.001 0l3.337 3.294a.714.714 0 010 1.001l-3.337 3.294a.71.71 0 01-1.008-.011z" fill="#fff"/></svg>
+          Existing Jira Ticket
+        </div>
+        <div style="font-size:0.6rem;color:var(--muted);margin-top:3px;" id="view-ticket-subtitle"></div>
+      </div>
+      <button onclick="closeViewTicketModal()" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.9rem;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
+    </div>
+    <div style="overflow-y:auto;padding:16px 20px;" id="view-ticket-body"></div>
+  </div>
+</div>
+
 </div><!-- #dashboard-content -->
 
 <script>
@@ -559,14 +580,20 @@ const pageState = { cts: 0, cth: 0, unassigned: 0 };
 const filteredCache = { cts: [], cth: [], unassigned: [] };
 
 const TABLE_COLS = {
-  cts: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Country","Region code","Days late","SLO","CTS Business Days"],
-  cth: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Country","Warehouse name","Days late","CTH Business Days"],
+  cts: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Country","Region code","Days late","SLO","CTS Business Days","Notes"],
+  cth: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Country","Warehouse name","Days late","CTH Business Days","Notes"],
   unassigned: ["Order item ID","Order ID","Organization name","Item Status","Country code","Product title","Recipient","Created At","Office name"]
 };
 
 function statusBadge(s) {
   const cls = {"Shipped":"shipped","Processing":"processing","Ordered":"ordered","Approved":"approved","Out For Delivery":"ofd","Delivery Exception":"exception"};
   return '<span class="status-badge status-'+(cls[s]||'processing')+'">'+s+'</span>';
+}
+
+function extractCotRef(notes) {
+  if (!notes) return null;
+  var match = notes.match(/COT-\d+/);
+  return match ? match[0] : null;
 }
 
 function renderTable(tab) {
@@ -580,12 +607,22 @@ function renderTable(tab) {
   let html = "<thead><tr>" + cols.map(function(c){return "<th>"+c+"</th>";}).join("") + "<th>Jira</th></tr></thead><tbody>";
   pageRows.forEach(function(r, idx) {
     var rowIdx = start + idx;
+    var notes = r["Notes"] || "";
+    var cotRef = (tab === "cts" || tab === "cth") ? extractCotRef(notes) : null;
     html += "<tr>" + cols.map(function(c) {
       const v = r[c] != null ? r[c] : "";
       if (c === "Status" || c === "Item Status") return "<td>"+statusBadge(v)+"</td>";
       if (c === "Order item ID" || c === "Order ID") return '<td style="white-space:nowrap"><span title="'+v+'" style="margin-right:4px">'+(v.length>8?v.slice(0,8)+'…':v)+'</span><button class="copy-btn" data-oid="'+v+'">Copy</button></td>';
+      if (c === "Notes") return '<td class="notes-cell" title="'+v.replace(/"/g,'&quot;')+'">'+v+'</td>';
       return '<td title="'+v+'">'+v+'</td>';
-    }).join("") + '<td><button class="jira-btn" onclick="openJiraModal(\''+tab+'\','+rowIdx+')">Raise Ticket</button></td></tr>';
+    }).join("");
+    // Jira column: View Ticket if COT ref exists, else Raise Ticket
+    if (cotRef) {
+      html += '<td><button class="jira-btn-view" onclick="openViewTicketModal(\''+tab+'\','+rowIdx+',\''+cotRef+'\')">View Ticket</button></td>';
+    } else {
+      html += '<td><button class="jira-btn" onclick="openJiraModal(\''+tab+'\','+rowIdx+')">Raise Ticket</button></td>';
+    }
+    html += '</tr>';
   });
   html += "</tbody>";
   table.innerHTML = html;
@@ -1239,6 +1276,109 @@ document.addEventListener("keydown", function(e) {
   }
 });
 
+// ===== VIEW TICKET MODAL =====
+function openViewTicketModal(tab, rowIdx, cotRef) {
+  var rows = filteredCache[tab];
+  if (!rows || !rows[rowIdx]) return;
+  var r = rows[rowIdx];
+  var notes = r["Notes"] || "";
+  var jiraUrl = "https://appdirect.jira.com/browse/" + cotRef;
+
+  document.getElementById("view-ticket-subtitle").textContent = r["Order item ID"] || r["Order ID"] || "";
+
+  var html = '';
+  html += '<div style="margin-bottom:14px;">';
+  html += '<div style="font-size:0.56rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Linked Jira Ticket</div>';
+  html += '<a href="'+jiraUrl+'" target="_blank" style="display:inline-flex;align-items:center;gap:8px;background:rgba(38,132,255,0.08);border:1px solid rgba(38,132,255,0.3);border-radius:6px;padding:10px 14px;text-decoration:none;font-size:0.72rem;color:#2684FF;font-weight:500;transition:all 0.15s;">';
+  html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12.005 2C6.486 2 2 6.486 2 12.005S6.486 22.01 12.005 22.01 22.01 17.524 22.01 12.005 17.524 2 12.005 2z" fill="#2684FF"/><path d="M10.086 16.789l-.003-.003a.686.686 0 01-.196-.487c0-.188.074-.368.206-.501l2.831-2.793-2.831-2.793a.714.714 0 010-1.001.714.714 0 011.001 0l3.337 3.294a.714.714 0 010 1.001l-3.337 3.294a.71.71 0 01-1.008-.011z" fill="#fff"/></svg>';
+  html += cotRef + ' — Open in Jira';
+  html += '</a>';
+  html += '</div>';
+
+  html += '<div style="margin-bottom:14px;">';
+  html += '<div style="font-size:0.56rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Notes</div>';
+  html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-size:0.66rem;line-height:1.6;color:var(--text);white-space:pre-wrap;word-break:break-word;">';
+  // Highlight COT references in the notes
+  var escapedNotes = notes.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  escapedNotes = escapedNotes.replace(/(COT-\d+)/g, '<a href="https://appdirect.jira.com/browse/$1" target="_blank" style="color:#2684FF;text-decoration:none;font-weight:500;">$1</a>');
+  html += escapedNotes || '<span style="color:var(--muted);font-style:italic;">No notes</span>';
+  html += '</div>';
+  html += '</div>';
+
+  // Order details summary
+  html += '<div style="margin-top:10px;">';
+  html += '<div style="font-size:0.56rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Order Details</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.62rem;">';
+  html += '<div style="color:var(--muted);">Organization</div><div style="color:var(--text);">'+(r["Organization name"]||"")+'</div>';
+  html += '<div style="color:var(--muted);">Status</div><div>'+statusBadge(r["Status"]||r["Item Status"]||"")+'</div>';
+  html += '<div style="color:var(--muted);">Category</div><div style="color:var(--text);">'+(r["Category"]||"")+'</div>';
+  html += '<div style="color:var(--muted);">Days Late</div><div style="color:'+(r["Days late"]>0?'var(--danger)':'var(--text)')+';">'+(r["Days late"]||0)+'</div>';
+  html += '</div>';
+  html += '</div>';
+
+  document.getElementById("view-ticket-body").innerHTML = html;
+  document.getElementById("viewTicketModal").style.display = "flex";
+}
+
+function closeViewTicketModal() {
+  document.getElementById("viewTicketModal").style.display = "none";
+}
+
+// Close View Ticket modal on backdrop click
+document.addEventListener("click", function(e) {
+  if (e.target === document.getElementById("viewTicketModal")) closeViewTicketModal();
+});
+
+// ===== NOTES FETCHING =====
+// Batch fetch notes for order item IDs using GraphQL aliases
+async function fetchNotesForItems(itemIds) {
+  var notesMap = {}; // itemId -> concatenated note string
+  if (!itemIds || !itemIds.length) return notesMap;
+
+  // Batch into groups of 25 to avoid overly large queries
+  var BATCH_SIZE = 25;
+  var batches = [];
+  for (var i = 0; i < itemIds.length; i += BATCH_SIZE) {
+    batches.push(itemIds.slice(i, i + BATCH_SIZE));
+  }
+
+  for (var b = 0; b < batches.length; b++) {
+    var batch = batches[b];
+    // Build aliased query: note_0: getPackageNotesForPackage(packageId: "xxx") { ... }
+    var parts = batch.map(function(id, idx) {
+      // Sanitize ID for alias (replace hyphens with underscores)
+      var alias = "n_" + idx;
+      return alias + ': getPackageNotesForPackage(packageId: "' + id + '") { id note active }';
+    });
+    var query = '{ ' + parts.join(' ') + ' }';
+
+    try {
+      var result = await gql(query);
+      if (result.data) {
+        batch.forEach(function(id, idx) {
+          var alias = "n_" + idx;
+          var notes = result.data[alias];
+          if (notes && Array.isArray(notes)) {
+            // Only active notes, concatenate with pipe separator
+            var activeNotes = notes.filter(function(n) { return n.active; }).map(function(n) { return n.note; });
+            if (activeNotes.length > 0) {
+              notesMap[id] = activeNotes.join(" | ");
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("[Notes] Batch " + (b+1) + "/" + batches.length + " failed:", e.message);
+    }
+
+    // Log progress
+    if (batches.length > 1) {
+      updateStatus("loading", "Fetching notes (" + Math.min((b+1)*BATCH_SIZE, itemIds.length) + "/" + itemIds.length + ")...");
+    }
+  }
+  return notesMap;
+}
+
 // ===== FIRSTBASE API INTEGRATION =====
 let apiConnected = false;
 
@@ -1466,6 +1606,34 @@ async function fetchLiveData() {
     });
     totalLoaded += DATA.unassigned.length;
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
+
+    // ── 4. FETCH NOTES FOR CTS + CTH ──
+    updateStatus("loading", "Fetching notes...");
+    var allNoteItemIds = [];
+    DATA.clickToShip.forEach(function(r) { if (r["Order item ID"]) allNoteItemIds.push(r["Order item ID"]); });
+    DATA.clickToHome.forEach(function(r) { if (r["Order item ID"]) allNoteItemIds.push(r["Order item ID"]); });
+    // Deduplicate
+    allNoteItemIds = [...new Set(allNoteItemIds)];
+    console.log("[Notes] Fetching notes for " + allNoteItemIds.length + " order items...");
+
+    var notesMap = {};
+    try {
+      notesMap = await fetchNotesForItems(allNoteItemIds);
+      var notesCount = Object.keys(notesMap).length;
+      console.log("[Notes] Got notes for " + notesCount + " items");
+    } catch(e) {
+      console.warn("[Notes] Failed to fetch notes:", e.message);
+    }
+
+    // Apply notes to CTS and CTH rows
+    DATA.clickToShip.forEach(function(r) {
+      var id = r["Order item ID"];
+      if (id && notesMap[id]) r["Notes"] = notesMap[id];
+    });
+    DATA.clickToHome.forEach(function(r) {
+      var id = r["Order item ID"];
+      if (id && notesMap[id]) r["Notes"] = notesMap[id];
+    });
 
     // Render
     populateGlobalFilters();
