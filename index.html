@@ -1615,77 +1615,106 @@ async function fetchLiveData() {
     totalLoaded += DATA.unassigned.length;
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
 
-    // ── 4. DISCOVER NOTE QUERIES ──
-    updateStatus("loading", "Discovering notes schema...");
+    // ── 4. FETCH NOTES FOR CTS + CTH ──
+    // Strategy: try multiple approaches to find notes, use whichever works
+    updateStatus("loading", "Fetching notes...");
+    var notesMap = {}; // orderItemId -> note text
+
+    // APPROACH 1: Try adding "notes" directly to order products query
+    // Many APIs expose notes as a sub-field on the entity
     try {
-      // Check NoteFilter input type to understand how notes are queried
-      var nfQ = '{ __type(name: "NoteFilter") { inputFields { name type { name kind ofType { name } } } } }';
-      var nfR = await gql(nfQ);
-      if (nfR.data.__type) {
-        console.log("[Schema] NoteFilter fields:", nfR.data.__type.inputFields.map(function(f){return f.name + ":" + (f.type.name || f.type.ofType && f.type.ofType.name || f.type.kind);}).join(", "));
-      }
-
-      // Search ALL root Query fields for anything returning Note type or accepting NoteFilter
-      var queryQ = '{ __type(name: "Query") { fields { name args { name type { name kind ofType { name kind ofType { name } } } } type { name kind ofType { name kind ofType { name } } } } } }';
-      var queryR = await gql(queryQ);
-      if (queryR.data.__type) {
-        // Find queries that return Note or accept NoteFilter/NoteEntityType
-        var noteQueries = queryR.data.__type.fields.filter(function(f) {
-          var n = f.name.toLowerCase();
-          if (n.includes("note")) return true;
-          // Check if any arg uses NoteFilter or NoteEntityType
-          return f.args.some(function(a) {
-            var tn = a.type.name || (a.type.ofType ? a.type.ofType.name : "");
-            return tn === "NoteFilter" || tn === "NoteEntityType";
-          });
-        });
-        noteQueries.forEach(function(f) {
-          var args = f.args.map(function(a){
-            var tn = a.type.name || (a.type.ofType ? a.type.ofType.name || (a.type.ofType.ofType ? a.type.ofType.ofType.name : "") : a.type.kind);
-            return a.name + ":" + tn;
-          }).join(", ");
-          var retType = f.type.name || (f.type.ofType ? f.type.ofType.name || (f.type.ofType.ofType ? f.type.ofType.ofType.name : "") : "");
-          console.log("[Schema] Note Query: " + f.name + "(" + args + ") => " + retType);
-        });
-
-        // Also look for queries with "order" that might include notes
-        var orderQueries = queryR.data.__type.fields.filter(function(f) {
-          return f.name.toLowerCase().includes("order") && !f.name.toLowerCase().includes("package");
-        });
-        orderQueries.forEach(function(f) {
-          var args = f.args.map(function(a){
-            var tn = a.type.name || (a.type.ofType ? a.type.ofType.name : a.type.kind);
-            return a.name + ":" + tn;
-          }).join(", ");
-          var retType = f.type.name || (f.type.ofType ? f.type.ofType.name || (f.type.ofType.ofType ? f.type.ofType.ofType.name : "") : "");
-          console.log("[Schema] Order Query: " + f.name + "(" + args + ") => " + retType);
-        });
-      }
-
-      // Check what fields the actual order type has (try different type names)
-      var orderTypeNames = ["Order", "OrderType", "CoreOrder", "OrderData"];
-      for (var ti = 0; ti < orderTypeNames.length; ti++) {
-        var otQ = '{ __type(name: "' + orderTypeNames[ti] + '") { fields { name } } }';
-        var otR = await gql(otQ);
-        if (otR.data.__type && otR.data.__type.fields.length > 0) {
-          console.log("[Schema] " + orderTypeNames[ti] + " fields:", otR.data.__type.fields.map(function(f){return f.name;}).join(", "));
+      var sampleId = (DATA.clickToShip[0] || DATA.clickToHome[0] || {})["Order ID"];
+      if (sampleId) {
+        // Test if orders have a notes field
+        var testQ1 = '{ getAllOrders(pagingAndSorting: { pageNumber: 1, pageSize: 1 }, orderFilter: { fulfilledNotShipped: true }) { data { id notes { id content } } } }';
+        var testR1 = await gql(testQ1);
+        if (testR1.data && testR1.data.getAllOrders && !testR1.errors) {
+          console.log("[Notes] Approach 1 (order.notes) WORKS:", JSON.stringify(testR1.data.getAllOrders.data[0]).slice(0, 300));
         }
       }
-
-      // Try to find the actual return type of getAllOrders
-      var gaoQ = '{ __type(name: "Query") { fields(includeDeprecated: true) { name type { name kind ofType { name kind ofType { name kind ofType { name fields { name } } } } } } } }';
-      var gaoR = await gql(gaoQ);
-      if (gaoR.data.__type) {
-        var gao = gaoR.data.__type.fields.find(function(f) { return f.name === "getAllOrders"; });
-        if (gao) {
-          console.log("[Schema] getAllOrders return type:", JSON.stringify(gao.type).slice(0, 300));
-        }
-      }
-    } catch(e) {
-      console.warn("[Schema] Introspection error:", e.message);
+    } catch(e1) {
+      console.log("[Notes] Approach 1 (order.notes) failed:", e1.message.slice(0, 150));
     }
 
-    console.log("[Notes] Check schema logs above.");
+    // APPROACH 2: Try notes on products
+    try {
+      var testQ2 = '{ getAllOrders(pagingAndSorting: { pageNumber: 1, pageSize: 1 }, orderFilter: { fulfilledNotShipped: true }) { data { id products { id notes { id content } } } } }';
+      var testR2 = await gql(testQ2);
+      if (testR2.data && testR2.data.getAllOrders && !testR2.errors) {
+        console.log("[Notes] Approach 2 (product.notes) WORKS:", JSON.stringify(testR2.data.getAllOrders.data[0]).slice(0, 300));
+      }
+    } catch(e2) {
+      console.log("[Notes] Approach 2 (product.notes) failed:", e2.message.slice(0, 150));
+    }
+
+    // APPROACH 3: Try getNotes / getNotesForEntity with ORDER_ITEM entity type
+    try {
+      var sampleItemId = (DATA.clickToShip[0] || DATA.clickToHome[0] || {})["Order item ID"];
+      if (sampleItemId) {
+        var testQ3 = '{ getNotes(filter: { entityType: ORDER_ITEM, entityId: "' + sampleItemId + '" }) { id content createdAt } }';
+        var testR3 = await gql(testQ3);
+        if (testR3.data && !testR3.errors) {
+          console.log("[Notes] Approach 3 (getNotes ORDER_ITEM) WORKS:", JSON.stringify(testR3.data).slice(0, 300));
+        } else if (testR3.errors) {
+          console.log("[Notes] Approach 3 (getNotes ORDER_ITEM) errors:", JSON.stringify(testR3.errors).slice(0, 300));
+        }
+      }
+    } catch(e3) {
+      console.log("[Notes] Approach 3 (getNotes ORDER_ITEM) failed:", e3.message.slice(0, 150));
+    }
+
+    // APPROACH 4: Try getNotes with ORDER entity type
+    try {
+      var sampleOrdId = (DATA.clickToShip[0] || DATA.clickToHome[0] || {})["Order ID"];
+      if (sampleOrdId) {
+        var testQ4 = '{ getNotes(filter: { entityType: ORDER, entityId: "' + sampleOrdId + '" }) { id content createdAt } }';
+        var testR4 = await gql(testQ4);
+        if (testR4.data && !testR4.errors) {
+          console.log("[Notes] Approach 4 (getNotes ORDER) WORKS:", JSON.stringify(testR4.data).slice(0, 300));
+        } else if (testR4.errors) {
+          console.log("[Notes] Approach 4 (getNotes ORDER) errors:", JSON.stringify(testR4.errors).slice(0, 300));
+        }
+      }
+    } catch(e4) {
+      console.log("[Notes] Approach 4 (getNotes ORDER) failed:", e4.message.slice(0, 150));
+    }
+
+    // APPROACH 5: Try getNotesForOrder / getOrderNotes / getNotesForOrderItem
+    var approach5Names = ["getNotesForOrder", "getOrderNotes", "getNotesForOrderItem", "getOrderItemNotes", "getNotesByEntityId"];
+    for (var a5 = 0; a5 < approach5Names.length; a5++) {
+      try {
+        var qName = approach5Names[a5];
+        var sId = (DATA.clickToShip[0] || {})["Order item ID"] || (DATA.clickToShip[0] || {})["Order ID"];
+        if (!sId) break;
+        var testQ5 = '{ ' + qName + '(id: "' + sId + '") { id content } }';
+        var testR5 = await gql(testQ5);
+        if (testR5.data && !testR5.errors) {
+          console.log("[Notes] Approach 5 (" + qName + ") WORKS:", JSON.stringify(testR5.data).slice(0, 300));
+        }
+      } catch(e5) {
+        // silently skip
+      }
+    }
+
+    // APPROACH 6: Quick schema check - what note queries exist and what are NoteFilter fields
+    try {
+      var nfQ = '{ nf: __type(name: "NoteFilter") { inputFields { name type { name kind ofType { name } } } } qt: __type(name: "Query") { fields { name args { name type { name kind ofType { name } } } type { name kind ofType { name kind ofType { name } } } } } }';
+      var nfR = await gql(nfQ);
+      if (nfR.data.nf) {
+        console.log("[Notes] NoteFilter fields:", nfR.data.nf.inputFields.map(function(f){return f.name;}).join(", "));
+      }
+      if (nfR.data.qt) {
+        var nqs = nfR.data.qt.fields.filter(function(f){ return f.name.toLowerCase().includes("note"); });
+        nqs.forEach(function(f) {
+          var args = f.args.map(function(a){return a.name+":"+(a.type.name||a.type.ofType&&a.type.ofType.name||"?");}).join(", ");
+          console.log("[Notes] Available query: " + f.name + "(" + args + ")");
+        });
+      }
+    } catch(e6) {
+      console.log("[Notes] Schema check failed:", e6.message.slice(0, 150));
+    }
+
+    console.log("[Notes] === Done testing approaches. Check logs above for which one worked. ===");
 
     // Render
     populateGlobalFilters();
