@@ -1616,28 +1616,44 @@ async function fetchLiveData() {
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
 
     // ── 4. DISCOVER PACKAGE IDs & FETCH NOTES ──
-    // First, introspect to find package-related fields on Order and Product types
-    updateStatus("loading", "Discovering package schema...");
+    updateStatus("loading", "Discovering schema...");
     try {
-      var schemaQ = '{ __type(name: "Order") { fields { name type { name kind ofType { name kind ofType { name } } } } } }';
-      var schemaResult = await gql(schemaQ);
-      var orderFields = schemaResult.data && schemaResult.data.__type ? schemaResult.data.__type.fields : [];
-      var packageFields = orderFields.filter(function(f) { return f.name.toLowerCase().includes("package"); });
-      console.log("[Schema] Order package-related fields:", JSON.stringify(packageFields.map(function(f){return f.name;})));
+      // List ALL Order fields
+      var orderSchemaQ = '{ __type(name: "Order") { fields { name type { name kind ofType { name } } } } }';
+      var orderSchemaR = await gql(orderSchemaQ);
+      var orderFields = orderSchemaR.data.__type ? orderSchemaR.data.__type.fields : [];
+      console.log("[Schema] ALL Order fields:", orderFields.map(function(f){return f.name;}).join(", "));
 
-      // Also check Product type
-      var prodSchemaQ = '{ __type(name: "Product") { fields { name type { name kind ofType { name kind ofType { name } } } } } }';
-      var prodSchemaResult = await gql(prodSchemaQ);
-      var prodFields = prodSchemaResult.data && prodSchemaResult.data.__type ? prodSchemaResult.data.__type.fields : [];
-      var prodPackageFields = prodFields.filter(function(f) { return f.name.toLowerCase().includes("package"); });
-      console.log("[Schema] Product package-related fields:", JSON.stringify(prodPackageFields.map(function(f){return {name:f.name, type:f.type};})));
+      // List ALL Product fields
+      var prodSchemaQ = '{ __type(name: "Product") { fields { name type { name kind ofType { name } } } } }';
+      var prodSchemaR = await gql(prodSchemaQ);
+      var prodFields = prodSchemaR.data.__type ? prodSchemaR.data.__type.fields : [];
+      console.log("[Schema] ALL Product fields:", prodFields.map(function(f){return f.name;}).join(", "));
+
+      // Search for any types with "package" or "note" in the name
+      var typesQ = '{ __schema { types { name kind } } }';
+      var typesR = await gql(typesQ);
+      var allTypes = typesR.data.__schema ? typesR.data.__schema.types : [];
+      var relevantTypes = allTypes.filter(function(t) {
+        var n = t.name.toLowerCase();
+        return (n.includes("package") || n.includes("note")) && !n.startsWith("__");
+      });
+      console.log("[Schema] Package/Note related types:", JSON.stringify(relevantTypes));
+
+      // Check if there's a Package type and what fields it has
+      var pkgTypeQ = '{ __type(name: "Package") { fields { name type { name kind ofType { name } } } } }';
+      var pkgTypeR = await gql(pkgTypeQ);
+      if (pkgTypeR.data.__type) {
+        var pkgFields = pkgTypeR.data.__type.fields;
+        console.log("[Schema] Package type fields:", pkgFields.map(function(f){return f.name;}).join(", "));
+      } else {
+        console.log("[Schema] No 'Package' type found");
+      }
     } catch(e) {
-      console.warn("[Schema] Introspection failed:", e.message);
+      console.warn("[Schema] Introspection error:", e.message);
     }
 
-    // Placeholder: notes will be fetched once we know the right packageId field
-    // For now, log what we found so we can fix it
-    console.log("[Notes] Skipping notes fetch until correct packageId field is identified. Check schema logs above.");
+    console.log("[Notes] Waiting for schema discovery. Check logs above to find the right ID field.");
 
     // Render
     populateGlobalFilters();
