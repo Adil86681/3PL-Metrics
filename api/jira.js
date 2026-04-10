@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { summary, description, labels, email, token } = req.body;
+    const { summary, description, labels, assigneeId, email, token } = req.body;
 
     // Use request body credentials, fall back to env vars
     const siteUrl = process.env.JIRA_SITE_URL || "https://appdirect.jira.com";
@@ -63,6 +63,11 @@ export default async function handler(req, res) {
     // Add labels if provided
     if (labels && Array.isArray(labels) && labels.length > 0) {
       issuePayload.fields.labels = labels;
+    }
+
+    // Add assignee if provided
+    if (assigneeId) {
+      issuePayload.fields.assignee = { accountId: assigneeId };
     }
 
     const resp = await fetch(`${siteUrl}/rest/api/3/issue`, {
