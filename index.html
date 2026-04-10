@@ -315,6 +315,35 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
   </div>
 </div>
 
+<!-- JIRA AUTH MODAL -->
+<div id="jiraAuthModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:250;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;width:420px;max-width:95vw;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-family:Syne,sans-serif;font-weight:700;font-size:1rem;display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12.005 2C6.486 2 2 6.486 2 12.005S6.486 22.01 12.005 22.01 22.01 17.524 22.01 12.005 17.524 2 12.005 2z" fill="#2684FF"/><path d="M10.086 16.789l-.003-.003a.686.686 0 01-.196-.487c0-.188.074-.368.206-.501l2.831-2.793-2.831-2.793a.714.714 0 010-1.001.714.714 0 011.001 0l3.337 3.294a.714.714 0 010 1.001l-3.337 3.294a.71.71 0 01-1.008-.011z" fill="#fff"/></svg>
+          Jira Credentials
+        </div>
+        <div style="font-size:0.6rem;color:var(--muted);margin-top:3px;">Enter once per session</div>
+      </div>
+      <button onclick="closeJiraAuth()" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.9rem;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
+    </div>
+    <div style="padding:16px 20px;">
+      <div class="jira-modal-field">
+        <label class="jira-modal-label">Atlassian Email</label>
+        <input class="jira-modal-input" id="jira-auth-email" type="email" placeholder="you@company.com" />
+      </div>
+      <div class="jira-modal-field">
+        <label class="jira-modal-label">Jira API Token</label>
+        <input class="jira-modal-input" id="jira-auth-token" type="password" placeholder="Your Jira API token" />
+        <div style="font-size:0.52rem;color:var(--muted);margin-top:2px;">Generate at <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank" style="color:#2684FF;">id.atlassian.com</a></div>
+      </div>
+      <div style="font-size:0.56rem;color:var(--danger);margin-bottom:8px;" id="jira-auth-error"></div>
+      <button class="jira-submit-btn" onclick="submitJiraAuth()">Connect to Jira</button>
+    </div>
+  </div>
+</div>
+
 <!-- JIRA TICKET MODAL -->
 <div id="jiraModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center;">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;width:600px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;">
@@ -925,8 +954,49 @@ function toggleTheme() {
 // ===== JIRA TICKET INTEGRATION =====
 var _jiraCurrentRow = null;
 var _jiraCurrentTab = null;
+var _jiraEmail = null;
+var _jiraToken = null;
+var _jiraAuthPending = null; // {tab, rowIdx} to open after auth
+
+function openJiraAuth(tab, rowIdx) {
+  _jiraAuthPending = { tab: tab, rowIdx: rowIdx };
+  document.getElementById("jira-auth-email").value = _jiraEmail || "";
+  document.getElementById("jira-auth-token").value = "";
+  document.getElementById("jira-auth-error").textContent = "";
+  document.getElementById("jiraAuthModal").style.display = "flex";
+}
+
+function closeJiraAuth() {
+  document.getElementById("jiraAuthModal").style.display = "none";
+  _jiraAuthPending = null;
+}
+
+function submitJiraAuth() {
+  var email = document.getElementById("jira-auth-email").value.trim();
+  var token = document.getElementById("jira-auth-token").value.trim();
+  var errEl = document.getElementById("jira-auth-error");
+
+  if (!email || !token) {
+    errEl.textContent = "Both fields are required";
+    return;
+  }
+
+  _jiraEmail = email;
+  _jiraToken = token;
+  closeJiraAuth();
+
+  // Now open the actual ticket modal
+  if (_jiraAuthPending) {
+    openJiraModal(_jiraAuthPending.tab, _jiraAuthPending.rowIdx);
+  }
+}
 
 function openJiraModal(tab, rowIdx) {
+  // If no credentials yet, ask for them first
+  if (!_jiraEmail || !_jiraToken) {
+    openJiraAuth(tab, rowIdx);
+    return;
+  }
   var rows = filteredCache[tab];
   if (!rows || !rows[rowIdx]) return;
   var r = rows[rowIdx];
@@ -1012,7 +1082,9 @@ async function submitJiraTicket() {
       body: JSON.stringify({
         summary: summary,
         description: description,
-        labels: ["3pl-dashboard"]
+        labels: ["3pl-dashboard"],
+        email: _jiraEmail,
+        token: _jiraToken
       })
     });
 
@@ -1044,9 +1116,17 @@ async function submitJiraTicket() {
   }
 }
 
-// Close Jira modal on backdrop click
+// Close Jira modals on backdrop click
 document.addEventListener("click", function(e) {
   if (e.target === document.getElementById("jiraModal")) closeJiraModal();
+  if (e.target === document.getElementById("jiraAuthModal")) closeJiraAuth();
+});
+
+// Allow Enter key to submit auth
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Enter" && document.getElementById("jiraAuthModal").style.display === "flex") {
+    submitJiraAuth();
+  }
 });
 
 // ===== FIRSTBASE API INTEGRATION =====
