@@ -130,6 +130,23 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 .copy-btn { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 0.55rem; padding: 3px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; flex-shrink: 0; transition: all 0.15s; font-family: "DM Mono", monospace; }
 .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
 .copy-btn.copied { border-color: var(--success); color: var(--success); }
+
+/* JIRA TICKET */
+.jira-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-family: "DM Mono", monospace; font-size: 0.55rem; padding: 3px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+.jira-btn:hover { border-color: #2684FF; color: #2684FF; }
+.jira-modal-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.jira-modal-label { font-size: 0.56rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.jira-modal-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: "DM Mono", monospace; font-size: 0.68rem; padding: 8px 10px; border-radius: 6px; width: 100%; }
+.jira-modal-input:focus { outline: none; border-color: #2684FF; }
+.jira-modal-textarea { background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-family: "DM Mono", monospace; font-size: 0.64rem; padding: 8px 10px; border-radius: 6px; width: 100%; min-height: 120px; resize: vertical; line-height: 1.5; }
+.jira-modal-textarea:focus { outline: none; border-color: #2684FF; }
+.jira-submit-btn { background: #2684FF; border: none; color: #fff; font-family: "DM Mono", monospace; font-size: 0.62rem; padding: 8px 18px; border-radius: 6px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; transition: all 0.15s; }
+.jira-submit-btn:hover { background: #1a6fdd; }
+.jira-submit-btn:disabled { opacity: 0.5; cursor: default; }
+.jira-success { background: rgba(30,158,94,0.1); border: 1px solid var(--success); border-radius: 6px; padding: 10px 14px; margin-top: 10px; }
+.jira-success a { color: #2684FF; text-decoration: none; font-weight: 500; }
+.jira-success a:hover { text-decoration: underline; }
+.jira-error { background: rgba(217,68,96,0.1); border: 1px solid var(--danger); border-radius: 6px; padding: 10px 14px; margin-top: 10px; color: var(--danger); font-size: 0.64rem; }
 /* CLICKABLE KPI */
 .kpi-clickable { cursor: pointer; transition: background 0.15s; }
 .kpi-clickable:hover { background: var(--surface2); }
@@ -295,6 +312,37 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
       <button onclick="closeModal()" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.9rem;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
     </div>
     <div style="overflow-y:auto;padding:16px 20px;" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- JIRA TICKET MODAL -->
+<div id="jiraModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;width:600px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-family:Syne,sans-serif;font-weight:700;font-size:1rem;display:flex;align-items:center;gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12.005 2C6.486 2 2 6.486 2 12.005S6.486 22.01 12.005 22.01 22.01 17.524 22.01 12.005 17.524 2 12.005 2z" fill="#2684FF"/><path d="M10.086 16.789l-.003-.003a.686.686 0 01-.196-.487c0-.188.074-.368.206-.501l2.831-2.793-2.831-2.793a.714.714 0 010-1.001.714.714 0 011.001 0l3.337 3.294a.714.714 0 010 1.001l-3.337 3.294a.71.71 0 01-1.008-.011z" fill="#fff"/></svg>
+          Raise Jira Ticket
+        </div>
+        <div style="font-size:0.6rem;color:var(--muted);margin-top:3px;" id="jira-modal-subtitle">COT (CS-OPs Tasks) &middot; Task</div>
+      </div>
+      <button onclick="closeJiraModal()" style="background:none;border:1px solid var(--border);color:var(--muted);font-size:0.9rem;width:28px;height:28px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#x2715;</button>
+    </div>
+    <div style="overflow-y:auto;padding:16px 20px;" id="jira-modal-body">
+      <div class="jira-modal-field">
+        <label class="jira-modal-label">Summary</label>
+        <input class="jira-modal-input" id="jira-summary" type="text" placeholder="Ticket summary..." />
+      </div>
+      <div class="jira-modal-field">
+        <label class="jira-modal-label">Description</label>
+        <textarea class="jira-modal-textarea" id="jira-description" placeholder="Ticket description..."></textarea>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="jira-submit-btn" id="jira-submit-btn" onclick="submitJiraTicket()">Create Ticket</button>
+        <span style="font-size:0.6rem;color:var(--muted);" id="jira-submit-status"></span>
+      </div>
+      <div id="jira-result"></div>
+    </div>
   </div>
 </div>
 
@@ -480,14 +528,15 @@ function renderTable(tab) {
   const page = pageState[tab];
   const start = page * PAGE_SIZE;
   const pageRows = rows.slice(start, start + PAGE_SIZE);
-  let html = "<thead><tr>" + cols.map(function(c){return "<th>"+c+"</th>";}).join("") + "</tr></thead><tbody>";
-  pageRows.forEach(function(r) {
+  let html = "<thead><tr>" + cols.map(function(c){return "<th>"+c+"</th>";}).join("") + "<th>Jira</th></tr></thead><tbody>";
+  pageRows.forEach(function(r, idx) {
+    var rowIdx = start + idx;
     html += "<tr>" + cols.map(function(c) {
       const v = r[c] != null ? r[c] : "";
       if (c === "Status" || c === "Item Status") return "<td>"+statusBadge(v)+"</td>";
       if (c === "Order item ID" || c === "Order ID") return '<td style="white-space:nowrap"><span title="'+v+'" style="margin-right:4px">'+(v.length>8?v.slice(0,8)+'…':v)+'</span><button class="copy-btn" data-oid="'+v+'">Copy</button></td>';
       return '<td title="'+v+'">'+v+'</td>';
-    }).join("") + "</tr>";
+    }).join("") + '<td><button class="jira-btn" onclick="openJiraModal(\''+tab+'\','+rowIdx+')">Raise Ticket</button></td></tr>';
   });
   html += "</tbody>";
   table.innerHTML = html;
@@ -872,6 +921,133 @@ function toggleTheme() {
   updateThemeColors();
   renderAll();
 }
+
+// ===== JIRA TICKET INTEGRATION =====
+var _jiraCurrentRow = null;
+var _jiraCurrentTab = null;
+
+function openJiraModal(tab, rowIdx) {
+  var rows = filteredCache[tab];
+  if (!rows || !rows[rowIdx]) return;
+  var r = rows[rowIdx];
+  _jiraCurrentRow = r;
+  _jiraCurrentTab = tab;
+
+  // Build summary based on tab
+  var tabLabels = { cts: "CTS", cth: "CTH", unassigned: "Unassigned" };
+  var org = r["Organization name"] || "";
+  var orderId = r["Order item ID"] || r["Order ID"] || "";
+  var status = r["Status"] || r["Item Status"] || "";
+  var summary = "[" + tabLabels[tab] + "] " + org + " — " + orderId;
+  if (status) summary += " (" + status + ")";
+
+  // Build description with all row data
+  var descLines = [];
+  descLines.push("Tab: " + tabLabels[tab]);
+  descLines.push("Order Item ID: " + (r["Order item ID"] || ""));
+  descLines.push("Order ID: " + (r["Order ID"] || ""));
+  descLines.push("Organization: " + org);
+  descLines.push("Status: " + status);
+  descLines.push("Category: " + (r["Category"] || ""));
+  descLines.push("Country: " + (r["Country"] || r["Country code"] || ""));
+  descLines.push("Region: " + (r["Region code"] || ""));
+
+  if (tab === "cts") {
+    descLines.push("Assigned to: " + (r["Assigned to"] || ""));
+    descLines.push("Days Late: " + (r["Days late"] || 0));
+    descLines.push("SLO: " + (r["SLO"] || ""));
+    descLines.push("CTS Business Days: " + (r["CTS Business Days"] || ""));
+  } else if (tab === "cth") {
+    descLines.push("Assigned to: " + (r["Assigned to"] || ""));
+    descLines.push("Warehouse: " + (r["Warehouse name"] || ""));
+    descLines.push("Days Late: " + (r["Days late"] || 0));
+    descLines.push("CTH Business Days: " + (r["CTH Business Days"] || ""));
+  } else if (tab === "unassigned") {
+    descLines.push("Product: " + (r["Product title"] || ""));
+    descLines.push("Recipient: " + (r["Recipient"] || r["Person name"] || ""));
+    descLines.push("Created At: " + (r["Created At"] || ""));
+  }
+
+  descLines.push("");
+  descLines.push("Raised from 3PL Metrics Dashboard");
+
+  document.getElementById("jira-summary").value = summary;
+  document.getElementById("jira-description").value = descLines.join("\n");
+  document.getElementById("jira-result").innerHTML = "";
+  document.getElementById("jira-submit-status").textContent = "";
+  document.getElementById("jira-submit-btn").disabled = false;
+  document.getElementById("jira-submit-btn").textContent = "Create Ticket";
+
+  var modal = document.getElementById("jiraModal");
+  modal.style.display = "flex";
+}
+
+function closeJiraModal() {
+  document.getElementById("jiraModal").style.display = "none";
+  _jiraCurrentRow = null;
+  _jiraCurrentTab = null;
+}
+
+async function submitJiraTicket() {
+  var summary = document.getElementById("jira-summary").value.trim();
+  var description = document.getElementById("jira-description").value.trim();
+  var btn = document.getElementById("jira-submit-btn");
+  var statusEl = document.getElementById("jira-submit-status");
+  var resultEl = document.getElementById("jira-result");
+
+  if (!summary) {
+    resultEl.innerHTML = '<div class="jira-error">Summary is required</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Creating...";
+  statusEl.textContent = "Sending to Jira...";
+  resultEl.innerHTML = "";
+
+  try {
+    var resp = await fetch("/api/jira", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        summary: summary,
+        description: description,
+        labels: ["3pl-dashboard"]
+      })
+    });
+
+    var data = await resp.json();
+
+    if (!resp.ok) {
+      throw new Error(data.error || "Failed to create ticket");
+    }
+
+    resultEl.innerHTML = '<div class="jira-success" style="font-size:0.68rem;">' +
+      '<strong style="color:var(--success);">Ticket created!</strong><br>' +
+      '<a href="' + data.url + '" target="_blank">' + data.key + '</a> — ' + summary +
+      '</div>';
+    btn.textContent = "Created!";
+    btn.style.background = "var(--success)";
+    statusEl.textContent = "";
+
+    setTimeout(function() {
+      btn.textContent = "Create Another";
+      btn.style.background = "";
+      btn.disabled = false;
+    }, 2000);
+
+  } catch (err) {
+    resultEl.innerHTML = '<div class="jira-error">Error: ' + err.message + '</div>';
+    btn.disabled = false;
+    btn.textContent = "Retry";
+    statusEl.textContent = "";
+  }
+}
+
+// Close Jira modal on backdrop click
+document.addEventListener("click", function(e) {
+  if (e.target === document.getElementById("jiraModal")) closeJiraModal();
+});
 
 // ===== FIRSTBASE API INTEGRATION =====
 let apiConnected = false;
