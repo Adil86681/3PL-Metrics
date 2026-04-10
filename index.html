@@ -236,9 +236,9 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 </div>
 
 <div class="filter-bar" id="global-filters">
-  <div class="filter-group"><div class="filter-label">Firstbase OSM</div><select class="filter-select" id="g-osm"><option value="">All OSMs</option></select></div>
+  <div class="filter-group"><div class="filter-label">Region</div><select class="filter-select" id="g-macro-region"><option value="">All Regions</option><option value="US">US</option><option value="Canada">Canada</option><option value="India">India</option><option value="UK">UK</option><option value="EU">EU</option><option value="LATAM">LATAM</option><option value="Rest of world">Rest of world</option></select></div>
   <div class="filter-group"><div class="filter-label">Organization</div><select class="filter-select" id="g-org"><option value="">All</option></select></div>
-  <div class="filter-group"><div class="filter-label">Region</div><select class="filter-select" id="g-region"><option value="">All</option></select></div>
+  <div class="filter-group"><div class="filter-label">Country</div><select class="filter-select" id="g-region"><option value="">All</option></select></div>
   <div class="filter-summary">Showing <span id="g-count">—</span> orders</div>
   <button class="reset-btn" onclick="resetGlobalFilters()">Reset</button>
   <button class="reset-btn" onclick="clearCachedData()" title="Clear cached CSV data and reload with embedded data" style="border-color:var(--danger);color:var(--danger)">Clear Cache</button>
@@ -420,7 +420,23 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 
 <script>
 let DATA = {"clickToShip": [], "clickToHome": [], "unassigned": []};
-let OSM_MAP = {"Amy Smith": ["3Cloud Solutions", "8th Light", "Akasa", "Apollo Graph", "Beamery", "Benifex", "Cambridge Mobile Telematics", "Cloudflare", "Corelight, Inc", "Cover Genius", "Docebo", "Dutchie", "Fortis Games", "HackerOne", "Houzz", "Lattice", "Mercari", "Mews", "Motion", "Movable Ink", "Mysten Labs", "Neo4j", "New Relic", "Outrider", "Pantheon Systems", "Pax8", "Paxos", "Prometheus", "Replicant", "SeatGeek", "SentinelOne", "Shopmonkey", "Sidecar Health", "Sovos", "Stack Overflow", "Strava", "Sysdig", "The Energy Foundation", "UiPath", "Veramed", "Verint Systems Inc", "Yankee Leisure Group", "YouGov", "evermore"], "Katie Prentice": ["Anyscale", "Archer Faris", "Ashby", "Assent", "Astronomer", "BDS Connected Solutions", "BGB Group", "Binti", "Braze", "Carta", "Coastal Community Bank", "Coinbase", "Cresta", "Crisis24", "Crosby Legal", "Discord", "ECI Software Solutions", "FluidStack", "HackerRank", "Harmonic Security", "Horizon3.ai", "Kraken Robotics", "LogicMonitor", "MaryRuth's", "Mercury", "Momentus", "MoonPay", "OpenSesame", "Pacvue", "Papa", "Permutive", "Phaidra", "Ping Identity", "Postman", "Prenuvo", "QbDVision", "Ramp", "Rithum", "SOCi", "Sift", "SpotOn", "StackAdapt", "Staffbase", "Synthesia", "Tailscale", "True Anomaly", "Velocity Global/Pebl", "Verve", "Wisp", "Wrapbook", "Yext", "York Solutions LLC", "a16z"], "Drea Bosque": ["Abnormal.AI", "Anaplan", "AppDirect", "Atrium", "BallotReady", "Branching Minds", "Brightwheel", "ConcertAI", "Cority", "Corporate Finance Institute", "Digital.ai", "Dotdigital", "Earnest Analytics", "Finfare", "Firstbase", "GAN Integrity", "JumpCloud", "Kinsta", "LastPass", "Life360", "Macabacus", "MedTrainer", "Mindoula", "Nylas", "OnePay", "OneTrust", "Qualtrics", "Refugee Rights", "SandboxAQ", "Sophos", "Spotify", "Sprout Social", "Sterling (FirstAdvantage)", "Sui Foundation", "Tanium", "Teylor", "TheMathCompany", "Typeform", "Varo Bank", "Wise", "Wiz", "ZenBusiness"]};
+// ===== REGION MAPPING =====
+var REGION_MAP = {
+  "US": ["US"],
+  "Canada": ["CA"],
+  "India": ["IN"],
+  "UK": ["GB"],
+  "EU": ["AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU","IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE","NO","CH","IS"],
+  "LATAM": ["AR","BO","BR","CL","CO","CR","CU","DO","EC","SV","GT","HN","MX","NI","PA","PY","PE","PR","UY","VE"]
+};
+// Reverse lookup: countryCode -> region name
+var COUNTRY_TO_REGION = {};
+Object.keys(REGION_MAP).forEach(function(region) {
+  REGION_MAP[region].forEach(function(cc) { COUNTRY_TO_REGION[cc] = region; });
+});
+function getRegionForCountry(cc) {
+  return COUNTRY_TO_REGION[cc] || "Rest of world";
+}
 
 const COLORS_DARK = ["#e8546b","#1a1d2b","#1e9e5e","#d94460","#c4a816","#7a5195","#4ea8b0","#d63a8c","#5aad2e","#3a7fd5"];
 const COLORS_LIGHT = ["#e8546b","#f0a050","#50d890","#f06070","#e8c840","#a070e0","#50c8d0","#e060a0","#80d050","#50a0e0"];
@@ -445,58 +461,45 @@ function pct(n, t) { return t ? (n/t*100).toFixed(1)+"%" : "0%"; }
 // ===== GLOBAL FILTERS =====
 let currentTab = "cts";
 
-function getGlobalOsmOrgs() {
-  const osm = document.getElementById("g-osm").value;
-  if (!osm) return null;
-  return OSM_MAP[osm] || [];
-}
-
-function filterByOsm(rows, orgKey, osmOrgs) {
-  if (!osmOrgs) return rows;
-  return rows.filter(r => {
-    const org = (r[orgKey] || "").toLowerCase();
-    return osmOrgs.some(m => org.includes(m.toLowerCase()) || m.toLowerCase().includes(org));
-  });
-}
-
 function getGlobalFiltered(dataset, orgKey) {
-  const osmOrgs = getGlobalOsmOrgs();
+  const macroRegion = document.getElementById("g-macro-region").value;
   const org = document.getElementById("g-org").value;
-  const region = document.getElementById("g-region").value;
+  const country = document.getElementById("g-region").value;
   let rows = dataset;
-  rows = filterByOsm(rows, orgKey, osmOrgs);
+  // Macro region filter: map each row's country to a region and compare
+  if (macroRegion) {
+    rows = rows.filter(function(r) {
+      var cc = r["Country"] || r["Country code"] || "";
+      return getRegionForCountry(cc) === macroRegion;
+    });
+  }
   if (org) rows = rows.filter(r => r[orgKey] === org);
-  // Region key varies by dataset
-  const regionKey = dataset === DATA.unassigned ? "Country code" : "Region code";
-  if (region) rows = rows.filter(r => r[regionKey] === region);
+  if (country) {
+    rows = rows.filter(function(r) {
+      var cc = r["Country"] || r["Country code"] || "";
+      return cc === country;
+    });
+  }
   return rows;
 }
 
 function populateGlobalFilters() {
-  // OSM
-  const osmSel = document.getElementById("g-osm");
-  const curOsm = osmSel.value;
-  while (osmSel.options.length > 1) osmSel.remove(1);
-  Object.keys(OSM_MAP).sort().forEach(o => {
-    const opt = document.createElement("option"); opt.value = o; opt.textContent = o; osmSel.appendChild(opt);
-  });
-  if (curOsm && OSM_MAP[curOsm]) osmSel.value = curOsm; else osmSel.value = "";
+  var macroRegion = document.getElementById("g-macro-region").value;
 
-  // Org — union of all org names, filtered by OSM
-  const osmOrgs = getGlobalOsmOrgs();
+  // Org — union of all org names, filtered by macro region if set
   const allOrgs = new Set();
-  if (osmOrgs) {
-    osmOrgs.forEach(function(o) { allOrgs.add(o); });
-  } else {
-    [DATA.clickToShip, DATA.clickToHome, DATA.unassigned].forEach(ds => {
-      if (!Array.isArray(ds)) return;
-      ds.forEach(r => {
-        if (!r || typeof r !== "object") return;
-        const org = r["Organization name"] || "";
-        if (org) allOrgs.add(org);
-      });
+  [DATA.clickToShip, DATA.clickToHome, DATA.unassigned].forEach(ds => {
+    if (!Array.isArray(ds)) return;
+    ds.forEach(r => {
+      if (!r || typeof r !== "object") return;
+      if (macroRegion) {
+        var cc = r["Country"] || r["Country code"] || "";
+        if (getRegionForCountry(cc) !== macroRegion) return;
+      }
+      const org = r["Organization name"] || "";
+      if (org) allOrgs.add(org);
     });
-  }
+  });
   const orgSel = document.getElementById("g-org");
   const curOrg = orgSel.value;
   while (orgSel.options.length > 1) orgSel.remove(1);
@@ -505,22 +508,29 @@ function populateGlobalFilters() {
   });
   if (allOrgs.has(curOrg)) orgSel.value = curOrg; else orgSel.value = "";
 
-  // Region — union of all regions
-  const allRegions = new Set();
-  if (Array.isArray(DATA.clickToShip)) DATA.clickToShip.forEach(r => { if (r && r["Region code"]) allRegions.add(r["Region code"]); });
-  if (Array.isArray(DATA.clickToHome)) DATA.clickToHome.forEach(r => { if (r && r["Region code"]) allRegions.add(r["Region code"]); });
-  if (Array.isArray(DATA.unassigned)) DATA.unassigned.forEach(r => { if (r && r["Country code"]) allRegions.add(r["Country code"]); });
+  // Country — union of all country codes, filtered by macro region if set
+  const allCountries = new Set();
+  [DATA.clickToShip, DATA.clickToHome, DATA.unassigned].forEach(ds => {
+    if (!Array.isArray(ds)) return;
+    ds.forEach(r => {
+      if (!r || typeof r !== "object") return;
+      var cc = r["Country"] || r["Country code"] || "";
+      if (!cc) return;
+      if (macroRegion && getRegionForCountry(cc) !== macroRegion) return;
+      allCountries.add(cc);
+    });
+  });
   const regSel = document.getElementById("g-region");
   const curReg = regSel.value;
   while (regSel.options.length > 1) regSel.remove(1);
-  [...allRegions].sort().forEach(v => {
+  [...allCountries].sort().forEach(v => {
     const opt = document.createElement("option"); opt.value = v; opt.textContent = v; regSel.appendChild(opt);
   });
-  if (allRegions.has(curReg)) regSel.value = curReg; else regSel.value = "";
+  if (allCountries.has(curReg)) regSel.value = curReg; else regSel.value = "";
 }
 
 function resetGlobalFilters() {
-  document.getElementById("g-osm").value = "";
+  document.getElementById("g-macro-region").value = "";
   document.getElementById("g-org").value = "";
   document.getElementById("g-region").value = "";
   populateGlobalFilters();
@@ -816,9 +826,9 @@ function switchTab(tab) {
 }
 
 // ===== EVENT LISTENERS =====
-["g-osm","g-org","g-region"].forEach(function(id) {
+["g-macro-region","g-org","g-region"].forEach(function(id) {
   document.getElementById(id).addEventListener("change", function() {
-    if (id === "g-osm") populateGlobalFilters();
+    if (id === "g-macro-region") populateGlobalFilters();
     renderAll();
   });
 });
