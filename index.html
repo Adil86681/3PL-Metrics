@@ -1615,34 +1615,29 @@ async function fetchLiveData() {
     totalLoaded += DATA.unassigned.length;
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
 
-    // ── 4. FETCH NOTES FOR CTS + CTH ──
-    // Notes are stored per order (packageId = Order ID), not per order item
-    updateStatus("loading", "Fetching notes...");
-    var allOrderIds = [];
-    DATA.clickToShip.forEach(function(r) { if (r["Order ID"]) allOrderIds.push(r["Order ID"]); });
-    DATA.clickToHome.forEach(function(r) { if (r["Order ID"]) allOrderIds.push(r["Order ID"]); });
-    // Deduplicate
-    allOrderIds = [...new Set(allOrderIds)];
-    console.log("[Notes] Will fetch notes for " + allOrderIds.length + " unique order IDs (from " + (DATA.clickToShip.length + DATA.clickToHome.length) + " rows)");
-
-    var notesMap = {};
+    // ── 4. DISCOVER PACKAGE IDs & FETCH NOTES ──
+    // First, introspect to find package-related fields on Order and Product types
+    updateStatus("loading", "Discovering package schema...");
     try {
-      notesMap = await fetchNotesForOrders(allOrderIds);
+      var schemaQ = '{ __type(name: "Order") { fields { name type { name kind ofType { name kind ofType { name } } } } } }';
+      var schemaResult = await gql(schemaQ);
+      var orderFields = schemaResult.data && schemaResult.data.__type ? schemaResult.data.__type.fields : [];
+      var packageFields = orderFields.filter(function(f) { return f.name.toLowerCase().includes("package"); });
+      console.log("[Schema] Order package-related fields:", JSON.stringify(packageFields.map(function(f){return f.name;})));
+
+      // Also check Product type
+      var prodSchemaQ = '{ __type(name: "Product") { fields { name type { name kind ofType { name kind ofType { name } } } } } }';
+      var prodSchemaResult = await gql(prodSchemaQ);
+      var prodFields = prodSchemaResult.data && prodSchemaResult.data.__type ? prodSchemaResult.data.__type.fields : [];
+      var prodPackageFields = prodFields.filter(function(f) { return f.name.toLowerCase().includes("package"); });
+      console.log("[Schema] Product package-related fields:", JSON.stringify(prodPackageFields.map(function(f){return {name:f.name, type:f.type};})));
     } catch(e) {
-      console.error("[Notes] Top-level fetch error:", e.message);
+      console.warn("[Schema] Introspection failed:", e.message);
     }
 
-    // Apply notes to CTS and CTH rows using Order ID
-    var notesApplied = 0;
-    DATA.clickToShip.forEach(function(r) {
-      var oid = r["Order ID"];
-      if (oid && notesMap[oid]) { r["Notes"] = notesMap[oid]; notesApplied++; }
-    });
-    DATA.clickToHome.forEach(function(r) {
-      var oid = r["Order ID"];
-      if (oid && notesMap[oid]) { r["Notes"] = notesMap[oid]; notesApplied++; }
-    });
-    console.log("[Notes] Applied notes to " + notesApplied + " rows");
+    // Placeholder: notes will be fetched once we know the right packageId field
+    // For now, log what we found so we can fix it
+    console.log("[Notes] Skipping notes fetch until correct packageId field is identified. Check schema logs above.");
 
     // Render
     populateGlobalFilters();
