@@ -1615,59 +1615,77 @@ async function fetchLiveData() {
     totalLoaded += DATA.unassigned.length;
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
 
-    // ── 4. DISCOVER PACKAGE IDs & FETCH NOTES ──
-    updateStatus("loading", "Discovering schema...");
+    // ── 4. DISCOVER NOTE QUERIES ──
+    updateStatus("loading", "Discovering notes schema...");
     try {
-      // Check OrderPackage type (link between orders and packages)
-      var opQ = '{ __type(name: "OrderPackage") { fields { name type { name kind ofType { name kind ofType { name } } } } } }';
-      var opR = await gql(opQ);
-      if (opR.data.__type) {
-        console.log("[Schema] OrderPackage fields:", opR.data.__type.fields.map(function(f){return f.name + ":" + (f.type.name || f.type.ofType && f.type.ofType.name || f.type.kind);}).join(", "));
+      // Check NoteFilter input type to understand how notes are queried
+      var nfQ = '{ __type(name: "NoteFilter") { inputFields { name type { name kind ofType { name } } } } }';
+      var nfR = await gql(nfQ);
+      if (nfR.data.__type) {
+        console.log("[Schema] NoteFilter fields:", nfR.data.__type.inputFields.map(function(f){return f.name + ":" + (f.type.name || f.type.ofType && f.type.ofType.name || f.type.kind);}).join(", "));
       }
 
-      // Check Note type
-      var noteQ = '{ __type(name: "Note") { fields { name type { name kind ofType { name } } } } }';
-      var noteR = await gql(noteQ);
-      if (noteR.data.__type) {
-        console.log("[Schema] Note type fields:", noteR.data.__type.fields.map(function(f){return f.name + ":" + (f.type.name || f.type.ofType && f.type.ofType.name || f.type.kind);}).join(", "));
-      }
-
-      // Check NoteEntityType enum values
-      var neQ = '{ __type(name: "NoteEntityType") { enumValues { name } } }';
-      var neR = await gql(neQ);
-      if (neR.data.__type) {
-        console.log("[Schema] NoteEntityType enum:", neR.data.__type.enumValues.map(function(v){return v.name;}).join(", "));
-      }
-
-      // Search root Query for note/package queries
-      var queryQ = '{ __type(name: "Query") { fields { name args { name type { name kind ofType { name } } } type { name kind ofType { name kind ofType { name } } } } } }';
+      // Search ALL root Query fields for anything returning Note type or accepting NoteFilter
+      var queryQ = '{ __type(name: "Query") { fields { name args { name type { name kind ofType { name kind ofType { name } } } } type { name kind ofType { name kind ofType { name } } } } } }';
       var queryR = await gql(queryQ);
       if (queryR.data.__type) {
+        // Find queries that return Note or accept NoteFilter/NoteEntityType
         var noteQueries = queryR.data.__type.fields.filter(function(f) {
           var n = f.name.toLowerCase();
-          return n.includes("note") || n.includes("package");
+          if (n.includes("note")) return true;
+          // Check if any arg uses NoteFilter or NoteEntityType
+          return f.args.some(function(a) {
+            var tn = a.type.name || (a.type.ofType ? a.type.ofType.name : "");
+            return tn === "NoteFilter" || tn === "NoteEntityType";
+          });
         });
         noteQueries.forEach(function(f) {
-          var args = f.args.map(function(a){return a.name + ":" + (a.type.name || a.type.ofType && a.type.ofType.name || "");}).join(", ");
+          var args = f.args.map(function(a){
+            var tn = a.type.name || (a.type.ofType ? a.type.ofType.name || (a.type.ofType.ofType ? a.type.ofType.ofType.name : "") : a.type.kind);
+            return a.name + ":" + tn;
+          }).join(", ");
           var retType = f.type.name || (f.type.ofType ? f.type.ofType.name || (f.type.ofType.ofType ? f.type.ofType.ofType.name : "") : "");
-          console.log("[Schema] Query: " + f.name + "(" + args + ") => " + retType);
+          console.log("[Schema] Note Query: " + f.name + "(" + args + ") => " + retType);
+        });
+
+        // Also look for queries with "order" that might include notes
+        var orderQueries = queryR.data.__type.fields.filter(function(f) {
+          return f.name.toLowerCase().includes("order") && !f.name.toLowerCase().includes("package");
+        });
+        orderQueries.forEach(function(f) {
+          var args = f.args.map(function(a){
+            var tn = a.type.name || (a.type.ofType ? a.type.ofType.name : a.type.kind);
+            return a.name + ":" + tn;
+          }).join(", ");
+          var retType = f.type.name || (f.type.ofType ? f.type.ofType.name || (f.type.ofType.ofType ? f.type.ofType.ofType.name : "") : "");
+          console.log("[Schema] Order Query: " + f.name + "(" + args + ") => " + retType);
         });
       }
 
-      // Try a sample: get first CTS order with its full raw structure to find package refs
-      if (DATA.clickToShip.length > 0) {
-        var sampleOrderId = DATA.clickToShip[0]["Order ID"];
-        var sampleQ = '{ getOrder(orderId: "' + sampleOrderId + '") { id products { id sku { id } } } }';
-        try {
-          var sampleR = await gql(sampleQ);
-          console.log("[Schema] Sample order structure:", JSON.stringify(sampleR.data).slice(0, 500));
-        } catch(e2) { console.log("[Schema] getOrder failed:", e2.message); }
+      // Check what fields the actual order type has (try different type names)
+      var orderTypeNames = ["Order", "OrderType", "CoreOrder", "OrderData"];
+      for (var ti = 0; ti < orderTypeNames.length; ti++) {
+        var otQ = '{ __type(name: "' + orderTypeNames[ti] + '") { fields { name } } }';
+        var otR = await gql(otQ);
+        if (otR.data.__type && otR.data.__type.fields.length > 0) {
+          console.log("[Schema] " + orderTypeNames[ti] + " fields:", otR.data.__type.fields.map(function(f){return f.name;}).join(", "));
+        }
+      }
+
+      // Try to find the actual return type of getAllOrders
+      var gaoQ = '{ __type(name: "Query") { fields(includeDeprecated: true) { name type { name kind ofType { name kind ofType { name kind ofType { name fields { name } } } } } } } }';
+      var gaoR = await gql(gaoQ);
+      if (gaoR.data.__type) {
+        var gao = gaoR.data.__type.fields.find(function(f) { return f.name === "getAllOrders"; });
+        if (gao) {
+          console.log("[Schema] getAllOrders return type:", JSON.stringify(gao.type).slice(0, 300));
+        }
       }
     } catch(e) {
       console.warn("[Schema] Introspection error:", e.message);
     }
 
-    console.log("[Notes] Check schema logs above to identify correct approach.");
+    console.log("[Notes] Check schema logs above.");
 
     // Render
     populateGlobalFilters();
