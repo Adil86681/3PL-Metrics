@@ -147,6 +147,18 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 .jira-success a { color: #2684FF; text-decoration: none; font-weight: 500; }
 .jira-success a:hover { text-decoration: underline; }
 .jira-error { background: rgba(217,68,96,0.1); border: 1px solid var(--danger); border-radius: 6px; padding: 10px 14px; margin-top: 10px; color: var(--danger); font-size: 0.64rem; }
+.jira-assignee-wrap { position: relative; }
+.jira-assignee-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; max-height: 180px; overflow-y: auto; z-index: 10; display: none; }
+.jira-assignee-results.open { display: block; }
+.jira-assignee-item { padding: 8px 10px; font-size: 0.66rem; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.1s; }
+.jira-assignee-item:hover { background: var(--surface2); }
+.jira-assignee-item img { width: 20px; height: 20px; border-radius: 50%; }
+.jira-assignee-name { color: var(--text); }
+.jira-assignee-email { color: var(--muted); font-size: 0.58rem; }
+.jira-assignee-selected { display: flex; align-items: center; gap: 8px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 0.66rem; margin-top: 4px; }
+.jira-assignee-selected img { width: 20px; height: 20px; border-radius: 50%; }
+.jira-assignee-clear { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.7rem; margin-left: auto; padding: 0 4px; }
+.jira-assignee-clear:hover { color: var(--danger); }
 /* CLICKABLE KPI */
 .kpi-clickable { cursor: pointer; transition: background 0.15s; }
 .kpi-clickable:hover { background: var(--surface2); }
@@ -361,6 +373,14 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
       <div class="jira-modal-field">
         <label class="jira-modal-label">Summary</label>
         <input class="jira-modal-input" id="jira-summary" type="text" placeholder="Ticket summary..." />
+      </div>
+      <div class="jira-modal-field">
+        <label class="jira-modal-label">Assignee</label>
+        <div class="jira-assignee-wrap">
+          <input class="jira-modal-input" id="jira-assignee-search" type="text" placeholder="Search by name or email..." autocomplete="off" oninput="searchJiraUsers()" />
+          <div class="jira-assignee-results" id="jira-assignee-results"></div>
+        </div>
+        <div id="jira-assignee-selected" style="display:none;"></div>
       </div>
       <div class="jira-modal-field">
         <label class="jira-modal-label">Description</label>
@@ -1048,6 +1068,9 @@ function openJiraModal(tab, rowIdx) {
   document.getElementById("jira-submit-btn").disabled = false;
   document.getElementById("jira-submit-btn").textContent = "Create Ticket";
 
+  // Reset assignee field
+  clearJiraAssignee();
+
   var modal = document.getElementById("jiraModal");
   modal.style.display = "flex";
 }
@@ -1083,6 +1106,7 @@ async function submitJiraTicket() {
         summary: summary,
         description: description,
         labels: ["3pl-dashboard"],
+        assigneeId: _jiraAssigneeId || null,
         email: _jiraEmail,
         token: _jiraToken
       })
@@ -1115,6 +1139,92 @@ async function submitJiraTicket() {
     statusEl.textContent = "";
   }
 }
+
+// ===== JIRA ASSIGNEE SEARCH =====
+var _jiraAssigneeId = null;
+var _jiraAssigneeName = null;
+var _jiraSearchTimer = null;
+
+function searchJiraUsers() {
+  var input = document.getElementById("jira-assignee-search");
+  var query = input.value.trim();
+  var resultsEl = document.getElementById("jira-assignee-results");
+
+  if (query.length < 2) {
+    resultsEl.innerHTML = "";
+    resultsEl.classList.remove("open");
+    return;
+  }
+
+  clearTimeout(_jiraSearchTimer);
+  _jiraSearchTimer = setTimeout(async function() {
+    try {
+      var resp = await fetch("/api/jira-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query, email: _jiraEmail, token: _jiraToken })
+      });
+      var data = await resp.json();
+      if (!data.users || !data.users.length) {
+        resultsEl.innerHTML = '<div style="padding:8px 10px;font-size:0.62rem;color:var(--muted);">No users found</div>';
+        resultsEl.classList.add("open");
+        return;
+      }
+      var html = "";
+      data.users.forEach(function(u) {
+        var avatar = u.avatarUrl ? '<img src="'+u.avatarUrl+'" />' : '';
+        html += '<div class="jira-assignee-item" onclick="selectJiraAssignee(\''+u.accountId+'\',\''+u.displayName.replace(/'/g,"\\'")+'\',\''+u.avatarUrl+'\')">';
+        html += avatar;
+        html += '<div><div class="jira-assignee-name">'+u.displayName+'</div>';
+        if (u.email) html += '<div class="jira-assignee-email">'+u.email+'</div>';
+        html += '</div></div>';
+      });
+      resultsEl.innerHTML = html;
+      resultsEl.classList.add("open");
+    } catch(e) {
+      resultsEl.innerHTML = '<div style="padding:8px 10px;font-size:0.62rem;color:var(--danger);">Search failed</div>';
+      resultsEl.classList.add("open");
+    }
+  }, 300);
+}
+
+function selectJiraAssignee(accountId, displayName, avatarUrl) {
+  _jiraAssigneeId = accountId;
+  _jiraAssigneeName = displayName;
+
+  var searchEl = document.getElementById("jira-assignee-search");
+  var resultsEl = document.getElementById("jira-assignee-results");
+  var selectedEl = document.getElementById("jira-assignee-selected");
+
+  searchEl.style.display = "none";
+  resultsEl.innerHTML = "";
+  resultsEl.classList.remove("open");
+
+  var avatar = avatarUrl ? '<img src="'+avatarUrl+'" />' : '';
+  selectedEl.innerHTML = '<div class="jira-assignee-selected">' + avatar +
+    '<span class="jira-assignee-name">' + displayName + '</span>' +
+    '<button class="jira-assignee-clear" onclick="clearJiraAssignee()" title="Remove">&times;</button></div>';
+  selectedEl.style.display = "block";
+}
+
+function clearJiraAssignee() {
+  _jiraAssigneeId = null;
+  _jiraAssigneeName = null;
+  var searchEl = document.getElementById("jira-assignee-search");
+  var selectedEl = document.getElementById("jira-assignee-selected");
+  searchEl.style.display = "";
+  searchEl.value = "";
+  selectedEl.innerHTML = "";
+  selectedEl.style.display = "none";
+}
+
+// Close assignee dropdown when clicking outside
+document.addEventListener("click", function(e) {
+  var wrap = document.querySelector(".jira-assignee-wrap");
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById("jira-assignee-results").classList.remove("open");
+  }
+});
 
 // Close Jira modals on backdrop click
 document.addEventListener("click", function(e) {
