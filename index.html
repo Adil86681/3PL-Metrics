@@ -475,7 +475,8 @@ function statusBadge(s) {
 function renderTable(tab) {
   const rows = filteredCache[tab];
   const cols = TABLE_COLS[tab];
-  const table = document.getElementById(tab + "-table");
+  const tableIds = {"unassigned":"ua-table"};
+  const table = document.getElementById(tableIds[tab] || tab + "-table");
   const page = pageState[tab];
   const start = page * PAGE_SIZE;
   const pageRows = rows.slice(start, start + PAGE_SIZE);
@@ -490,7 +491,8 @@ function renderTable(tab) {
   });
   html += "</tbody>";
   table.innerHTML = html;
-  const prefix = tab;
+  const prefixMap = {"unassigned":"ua"};
+  const prefix = prefixMap[tab] || tab;
   document.getElementById(prefix + "-table-info").textContent = rows.length ? "Showing "+(start+1)+"-"+Math.min(start+PAGE_SIZE, rows.length)+" of "+rows.length : "No results";
   document.getElementById(prefix + "-prev").disabled = page === 0;
   document.getElementById(prefix + "-next").disabled = start + PAGE_SIZE >= rows.length;
