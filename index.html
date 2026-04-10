@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>3PL Metrics - Jira</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:," />
+<script>
+// Clerk onload stub — ensures __initClerk exists before the async script fires
+var __clerkReady = false;
+var __clerkRealInit = null;
+function __initClerk() {
+  if (__clerkRealInit) { __clerkRealInit(); }
+  else { __clerkReady = true; }
+}
+</script>
 <script async crossorigin="anonymous" data-clerk-publishable-key="pk_test_cHJldHR5LW11dHQtMjkuY2xlcmsuYWNjb3VudHMuZGV2JA" src="https://pretty-mutt-29.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js" onload="if(document.readyState!=='loading'){__initClerk();}else{document.addEventListener('DOMContentLoaded',__initClerk);}" type="text/javascript"></script>
 <style>
 :root {
@@ -1162,7 +1172,8 @@ function __showSignIn(clerk) {
   clerk.redirectToSignIn({ redirectUrl: window.location.href });
 }
 
-async function __initClerk() {
+// Real Clerk init — hooks into the stub defined in <head>
+__clerkRealInit = async function() {
   if (!window.Clerk) {
     console.warn('[Clerk] SDK not loaded — showing dashboard without auth (fallback)');
     document.getElementById('clerk-auth-overlay').style.display = 'none';
@@ -1171,7 +1182,6 @@ async function __initClerk() {
     return;
   }
   try {
-    // When loaded via data-clerk-publishable-key, window.Clerk is already instantiated
     var clerk = window.Clerk;
     await clerk.load();
     window.__clerk = clerk;
@@ -1192,14 +1202,14 @@ async function __initClerk() {
 
   } catch(e) {
     console.error('[Clerk] Init error:', e);
-    // Fallback: show dashboard anyway if Clerk fails
     document.getElementById('clerk-auth-overlay').style.display = 'none';
     document.getElementById('dashboard-content').style.display = '';
     __initDashboard();
   }
-}
+};
 
-// Clerk init is triggered via onload on the script tag above
+// If Clerk script already fired onload before we got here, run now
+if (__clerkReady) { __clerkRealInit(); }
 </script>
 </body>
 </html>
