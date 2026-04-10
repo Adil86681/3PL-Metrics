@@ -1330,23 +1330,24 @@ document.addEventListener("click", function(e) {
 });
 
 // ===== NOTES FETCHING =====
-// Batch fetch notes for order item IDs using GraphQL aliases
-async function fetchNotesForItems(itemIds) {
-  var notesMap = {}; // itemId -> concatenated note string
-  if (!itemIds || !itemIds.length) return notesMap;
+// Batch fetch notes for order IDs using GraphQL aliases
+async function fetchNotesForOrders(orderIds) {
+  var notesMap = {}; // orderId -> concatenated note string
+  if (!orderIds || !orderIds.length) return notesMap;
 
-  // Batch into groups of 25 to avoid overly large queries
-  var BATCH_SIZE = 25;
+  // Batch into groups of 20 to avoid overly large queries
+  var BATCH_SIZE = 20;
   var batches = [];
-  for (var i = 0; i < itemIds.length; i += BATCH_SIZE) {
-    batches.push(itemIds.slice(i, i + BATCH_SIZE));
+  for (var i = 0; i < orderIds.length; i += BATCH_SIZE) {
+    batches.push(orderIds.slice(i, i + BATCH_SIZE));
   }
+
+  console.log("[Notes] Starting fetch: " + orderIds.length + " unique order IDs in " + batches.length + " batches");
 
   for (var b = 0; b < batches.length; b++) {
     var batch = batches[b];
-    // Build aliased query: note_0: getPackageNotesForPackage(packageId: "xxx") { ... }
+    // Build aliased query: n_0: getPackageNotesForPackage(packageId: "xxx") { ... }
     var parts = batch.map(function(id, idx) {
-      // Sanitize ID for alias (replace hyphens with underscores)
       var alias = "n_" + idx;
       return alias + ': getPackageNotesForPackage(packageId: "' + id + '") { id note active }';
     });
@@ -1354,11 +1355,14 @@ async function fetchNotesForItems(itemIds) {
 
     try {
       var result = await gql(query);
+      if (result.errors) {
+        console.warn("[Notes] Batch " + (b+1) + " GraphQL errors:", JSON.stringify(result.errors).slice(0, 300));
+      }
       if (result.data) {
         batch.forEach(function(id, idx) {
           var alias = "n_" + idx;
           var notes = result.data[alias];
-          if (notes && Array.isArray(notes)) {
+          if (notes && Array.isArray(notes) && notes.length > 0) {
             // Only active notes, concatenate with pipe separator
             var activeNotes = notes.filter(function(n) { return n.active; }).map(function(n) { return n.note; });
             if (activeNotes.length > 0) {
@@ -1366,16 +1370,20 @@ async function fetchNotesForItems(itemIds) {
             }
           }
         });
+      } else {
+        console.warn("[Notes] Batch " + (b+1) + " returned no data. Full response:", JSON.stringify(result).slice(0, 500));
       }
     } catch (e) {
-      console.warn("[Notes] Batch " + (b+1) + "/" + batches.length + " failed:", e.message);
+      console.error("[Notes] Batch " + (b+1) + "/" + batches.length + " FAILED:", e.message);
+      // Log the first query for debugging
+      if (b === 0) console.log("[Notes] Sample query (batch 1):", query.slice(0, 400));
     }
 
     // Log progress
-    if (batches.length > 1) {
-      updateStatus("loading", "Fetching notes (" + Math.min((b+1)*BATCH_SIZE, itemIds.length) + "/" + itemIds.length + ")...");
-    }
+    updateStatus("loading", "Fetching notes (" + Math.min((b+1)*BATCH_SIZE, orderIds.length) + "/" + orderIds.length + ")...");
   }
+
+  console.log("[Notes] Fetch complete. Got notes for " + Object.keys(notesMap).length + " orders");
   return notesMap;
 }
 
@@ -1608,32 +1616,33 @@ async function fetchLiveData() {
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
 
     // ── 4. FETCH NOTES FOR CTS + CTH ──
+    // Notes are stored per order (packageId = Order ID), not per order item
     updateStatus("loading", "Fetching notes...");
-    var allNoteItemIds = [];
-    DATA.clickToShip.forEach(function(r) { if (r["Order item ID"]) allNoteItemIds.push(r["Order item ID"]); });
-    DATA.clickToHome.forEach(function(r) { if (r["Order item ID"]) allNoteItemIds.push(r["Order item ID"]); });
+    var allOrderIds = [];
+    DATA.clickToShip.forEach(function(r) { if (r["Order ID"]) allOrderIds.push(r["Order ID"]); });
+    DATA.clickToHome.forEach(function(r) { if (r["Order ID"]) allOrderIds.push(r["Order ID"]); });
     // Deduplicate
-    allNoteItemIds = [...new Set(allNoteItemIds)];
-    console.log("[Notes] Fetching notes for " + allNoteItemIds.length + " order items...");
+    allOrderIds = [...new Set(allOrderIds)];
+    console.log("[Notes] Will fetch notes for " + allOrderIds.length + " unique order IDs (from " + (DATA.clickToShip.length + DATA.clickToHome.length) + " rows)");
 
     var notesMap = {};
     try {
-      notesMap = await fetchNotesForItems(allNoteItemIds);
-      var notesCount = Object.keys(notesMap).length;
-      console.log("[Notes] Got notes for " + notesCount + " items");
+      notesMap = await fetchNotesForOrders(allOrderIds);
     } catch(e) {
-      console.warn("[Notes] Failed to fetch notes:", e.message);
+      console.error("[Notes] Top-level fetch error:", e.message);
     }
 
-    // Apply notes to CTS and CTH rows
+    // Apply notes to CTS and CTH rows using Order ID
+    var notesApplied = 0;
     DATA.clickToShip.forEach(function(r) {
-      var id = r["Order item ID"];
-      if (id && notesMap[id]) r["Notes"] = notesMap[id];
+      var oid = r["Order ID"];
+      if (oid && notesMap[oid]) { r["Notes"] = notesMap[oid]; notesApplied++; }
     });
     DATA.clickToHome.forEach(function(r) {
-      var id = r["Order item ID"];
-      if (id && notesMap[id]) r["Notes"] = notesMap[id];
+      var oid = r["Order ID"];
+      if (oid && notesMap[oid]) { r["Notes"] = notesMap[oid]; notesApplied++; }
     });
+    console.log("[Notes] Applied notes to " + notesApplied + " rows");
 
     // Render
     populateGlobalFilters();
