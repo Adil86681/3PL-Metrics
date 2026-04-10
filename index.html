@@ -1329,64 +1329,6 @@ document.addEventListener("click", function(e) {
   if (e.target === document.getElementById("viewTicketModal")) closeViewTicketModal();
 });
 
-// ===== NOTES FETCHING =====
-// Batch fetch notes for order IDs using GraphQL aliases
-async function fetchNotesForOrders(orderIds) {
-  var notesMap = {}; // orderId -> concatenated note string
-  if (!orderIds || !orderIds.length) return notesMap;
-
-  // Batch into groups of 20 to avoid overly large queries
-  var BATCH_SIZE = 20;
-  var batches = [];
-  for (var i = 0; i < orderIds.length; i += BATCH_SIZE) {
-    batches.push(orderIds.slice(i, i + BATCH_SIZE));
-  }
-
-  console.log("[Notes] Starting fetch: " + orderIds.length + " unique order IDs in " + batches.length + " batches");
-
-  for (var b = 0; b < batches.length; b++) {
-    var batch = batches[b];
-    // Build aliased query: n_0: getPackageNotesForPackage(packageId: "xxx") { ... }
-    var parts = batch.map(function(id, idx) {
-      var alias = "n_" + idx;
-      return alias + ': getPackageNotesForPackage(packageId: "' + id + '") { id note active }';
-    });
-    var query = '{ ' + parts.join(' ') + ' }';
-
-    try {
-      var result = await gql(query);
-      if (result.errors) {
-        console.warn("[Notes] Batch " + (b+1) + " GraphQL errors:", JSON.stringify(result.errors).slice(0, 300));
-      }
-      if (result.data) {
-        batch.forEach(function(id, idx) {
-          var alias = "n_" + idx;
-          var notes = result.data[alias];
-          if (notes && Array.isArray(notes) && notes.length > 0) {
-            // Only active notes, concatenate with pipe separator
-            var activeNotes = notes.filter(function(n) { return n.active; }).map(function(n) { return n.note; });
-            if (activeNotes.length > 0) {
-              notesMap[id] = activeNotes.join(" | ");
-            }
-          }
-        });
-      } else {
-        console.warn("[Notes] Batch " + (b+1) + " returned no data. Full response:", JSON.stringify(result).slice(0, 500));
-      }
-    } catch (e) {
-      console.error("[Notes] Batch " + (b+1) + "/" + batches.length + " FAILED:", e.message);
-      // Log the first query for debugging
-      if (b === 0) console.log("[Notes] Sample query (batch 1):", query.slice(0, 400));
-    }
-
-    // Log progress
-    updateStatus("loading", "Fetching notes (" + Math.min((b+1)*BATCH_SIZE, orderIds.length) + "/" + orderIds.length + ")...");
-  }
-
-  console.log("[Notes] Fetch complete. Got notes for " + Object.keys(notesMap).length + " orders");
-  return notesMap;
-}
-
 // ===== FIRSTBASE API INTEGRATION =====
 let apiConnected = false;
 
@@ -1424,6 +1366,7 @@ const ORDER_FIELDS = `
     inventory { id warehouse { name } region { regionCode } }
     reservedInventory { id warehouse { name } region { regionCode } }
     orderFulfilment { method warehouseId }
+    notes { id content createdAt }
   }
   shippingAddress { countryCode }
 `;
@@ -1483,8 +1426,8 @@ function flattenOrderItems(orders) {
         "Inventory ID": p.inventory ? p.inventory.id : "",
         "Start date": order.createdAt || "",
         "Current Time Local": new Date().toISOString(),
-        "Item Notes": "",
-        "Notes": "",
+        "Item Notes": (p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : "",
+        "Notes": (p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : "",
         "Order item note": "",
         "Office name": "",
         "Timezone": "",
@@ -1615,106 +1558,12 @@ async function fetchLiveData() {
     totalLoaded += DATA.unassigned.length;
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
 
-    // ── 4. FETCH NOTES FOR CTS + CTH ──
-    // Strategy: try multiple approaches to find notes, use whichever works
-    updateStatus("loading", "Fetching notes...");
-    var notesMap = {}; // orderItemId -> note text
-
-    // APPROACH 1: Try adding "notes" directly to order products query
-    // Many APIs expose notes as a sub-field on the entity
-    try {
-      var sampleId = (DATA.clickToShip[0] || DATA.clickToHome[0] || {})["Order ID"];
-      if (sampleId) {
-        // Test if orders have a notes field
-        var testQ1 = '{ getAllOrders(pagingAndSorting: { pageNumber: 1, pageSize: 1 }, orderFilter: { fulfilledNotShipped: true }) { data { id notes { id content } } } }';
-        var testR1 = await gql(testQ1);
-        if (testR1.data && testR1.data.getAllOrders && !testR1.errors) {
-          console.log("[Notes] Approach 1 (order.notes) WORKS:", JSON.stringify(testR1.data.getAllOrders.data[0]).slice(0, 300));
-        }
-      }
-    } catch(e1) {
-      console.log("[Notes] Approach 1 (order.notes) failed:", e1.message.slice(0, 150));
-    }
-
-    // APPROACH 2: Try notes on products
-    try {
-      var testQ2 = '{ getAllOrders(pagingAndSorting: { pageNumber: 1, pageSize: 1 }, orderFilter: { fulfilledNotShipped: true }) { data { id products { id notes { id content } } } } }';
-      var testR2 = await gql(testQ2);
-      if (testR2.data && testR2.data.getAllOrders && !testR2.errors) {
-        console.log("[Notes] Approach 2 (product.notes) WORKS:", JSON.stringify(testR2.data.getAllOrders.data[0]).slice(0, 300));
-      }
-    } catch(e2) {
-      console.log("[Notes] Approach 2 (product.notes) failed:", e2.message.slice(0, 150));
-    }
-
-    // APPROACH 3: Try getNotes / getNotesForEntity with ORDER_ITEM entity type
-    try {
-      var sampleItemId = (DATA.clickToShip[0] || DATA.clickToHome[0] || {})["Order item ID"];
-      if (sampleItemId) {
-        var testQ3 = '{ getNotes(filter: { entityType: ORDER_ITEM, entityId: "' + sampleItemId + '" }) { id content createdAt } }';
-        var testR3 = await gql(testQ3);
-        if (testR3.data && !testR3.errors) {
-          console.log("[Notes] Approach 3 (getNotes ORDER_ITEM) WORKS:", JSON.stringify(testR3.data).slice(0, 300));
-        } else if (testR3.errors) {
-          console.log("[Notes] Approach 3 (getNotes ORDER_ITEM) errors:", JSON.stringify(testR3.errors).slice(0, 300));
-        }
-      }
-    } catch(e3) {
-      console.log("[Notes] Approach 3 (getNotes ORDER_ITEM) failed:", e3.message.slice(0, 150));
-    }
-
-    // APPROACH 4: Try getNotes with ORDER entity type
-    try {
-      var sampleOrdId = (DATA.clickToShip[0] || DATA.clickToHome[0] || {})["Order ID"];
-      if (sampleOrdId) {
-        var testQ4 = '{ getNotes(filter: { entityType: ORDER, entityId: "' + sampleOrdId + '" }) { id content createdAt } }';
-        var testR4 = await gql(testQ4);
-        if (testR4.data && !testR4.errors) {
-          console.log("[Notes] Approach 4 (getNotes ORDER) WORKS:", JSON.stringify(testR4.data).slice(0, 300));
-        } else if (testR4.errors) {
-          console.log("[Notes] Approach 4 (getNotes ORDER) errors:", JSON.stringify(testR4.errors).slice(0, 300));
-        }
-      }
-    } catch(e4) {
-      console.log("[Notes] Approach 4 (getNotes ORDER) failed:", e4.message.slice(0, 150));
-    }
-
-    // APPROACH 5: Try getNotesForOrder / getOrderNotes / getNotesForOrderItem
-    var approach5Names = ["getNotesForOrder", "getOrderNotes", "getNotesForOrderItem", "getOrderItemNotes", "getNotesByEntityId"];
-    for (var a5 = 0; a5 < approach5Names.length; a5++) {
-      try {
-        var qName = approach5Names[a5];
-        var sId = (DATA.clickToShip[0] || {})["Order item ID"] || (DATA.clickToShip[0] || {})["Order ID"];
-        if (!sId) break;
-        var testQ5 = '{ ' + qName + '(id: "' + sId + '") { id content } }';
-        var testR5 = await gql(testQ5);
-        if (testR5.data && !testR5.errors) {
-          console.log("[Notes] Approach 5 (" + qName + ") WORKS:", JSON.stringify(testR5.data).slice(0, 300));
-        }
-      } catch(e5) {
-        // silently skip
-      }
-    }
-
-    // APPROACH 6: Quick schema check - what note queries exist and what are NoteFilter fields
-    try {
-      var nfQ = '{ nf: __type(name: "NoteFilter") { inputFields { name type { name kind ofType { name } } } } qt: __type(name: "Query") { fields { name args { name type { name kind ofType { name } } } type { name kind ofType { name kind ofType { name } } } } } }';
-      var nfR = await gql(nfQ);
-      if (nfR.data.nf) {
-        console.log("[Notes] NoteFilter fields:", nfR.data.nf.inputFields.map(function(f){return f.name;}).join(", "));
-      }
-      if (nfR.data.qt) {
-        var nqs = nfR.data.qt.fields.filter(function(f){ return f.name.toLowerCase().includes("note"); });
-        nqs.forEach(function(f) {
-          var args = f.args.map(function(a){return a.name+":"+(a.type.name||a.type.ofType&&a.type.ofType.name||"?");}).join(", ");
-          console.log("[Notes] Available query: " + f.name + "(" + args + ")");
-        });
-      }
-    } catch(e6) {
-      console.log("[Notes] Schema check failed:", e6.message.slice(0, 150));
-    }
-
-    console.log("[Notes] === Done testing approaches. Check logs above for which one worked. ===");
+    // ── 4. NOTES ──
+    // Notes are now fetched inline via product.notes in ORDER_FIELDS
+    var ctsWithNotes = DATA.clickToShip.filter(function(r){ return r["Notes"]; }).length;
+    var cthWithNotes = DATA.clickToHome.filter(function(r){ return r["Notes"]; }).length;
+    console.log("[Notes] CTS rows with notes: " + ctsWithNotes + "/" + DATA.clickToShip.length);
+    console.log("[Notes] CTH rows with notes: " + cthWithNotes + "/" + DATA.clickToHome.length);
 
     // Render
     populateGlobalFilters();
