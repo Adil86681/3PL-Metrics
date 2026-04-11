@@ -420,6 +420,7 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 
 <script>
 let DATA = {"clickToShip": [], "clickToHome": [], "unassigned": []};
+const EXCLUDED_ORGS = {"Dunder Mifflin Paper Company":1, "Start Industries":1, "Abnormal Sandbox":1, "Spotify":1};
 // ===== REGION MAPPING =====
 var REGION_MAP = {
   "US": ["US"],
@@ -465,7 +466,7 @@ function getGlobalFiltered(dataset, orgKey) {
   const macroRegion = document.getElementById("g-macro-region").value;
   const org = document.getElementById("g-org").value;
   const country = document.getElementById("g-region").value;
-  let rows = dataset;
+  let rows = dataset.filter(function(r) { return !EXCLUDED_ORGS[r[orgKey]]; });
   // Macro region filter: map each row's country to a region and compare
   if (macroRegion) {
     rows = rows.filter(function(r) {
@@ -497,7 +498,7 @@ function populateGlobalFilters() {
         if (getRegionForCountry(cc) !== macroRegion) return;
       }
       const org = r["Organization name"] || "";
-      if (org) allOrgs.add(org);
+      if (org && !EXCLUDED_ORGS[org]) allOrgs.add(org);
     });
   });
   const orgSel = document.getElementById("g-org");
