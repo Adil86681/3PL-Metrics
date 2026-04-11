@@ -1524,12 +1524,19 @@ async function fetchLiveData() {
       'getAllOrders', 'Click To Ship'
     );
     var ctsRows = flattenOrderItems(ctsOrders);
+    // Log breakdown before filtering
+    var ctsStatusFiltered = ctsRows.filter(function(r) { return CTS_STATUSES[r._rawStatus]; });
+    var methodCounts = {};
+    ctsStatusFiltered.forEach(function(r) { var m = r._fulfilmentMethod || "null"; methodCounts[m] = (methodCounts[m]||0) + 1; });
+    console.log("[CTS DEBUG] Total flattened rows:", ctsRows.length);
+    console.log("[CTS DEBUG] After status filter (no WAREHOUSE filter):", ctsStatusFiltered.length);
+    console.log("[CTS DEBUG] Fulfilment method breakdown:", JSON.stringify(methodCounts));
     // Split by fulfilment method and filter to target statuses
     DATA.clickToShip = ctsRows.filter(function(r) {
-      return CTS_STATUSES[r._rawStatus] && r._fulfilmentMethod === 'WAREHOUSE';
+      return CTS_STATUSES[r._rawStatus];
     });
+    console.log("[CTS DEBUG] After WAREHOUSE filter:", DATA.clickToShip.length);
     totalLoaded += DATA.clickToShip.length;
-    console.log("[Data] CTS:", DATA.clickToShip.length, "(WAREHOUSE fulfilled, target ~113)");
 
     // ── 2. CLICK TO HOME ──
     // Use ORDER-LEVEL statuses filter (not orderItemStatuses) — this returns orders
