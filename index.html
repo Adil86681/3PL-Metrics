@@ -168,6 +168,15 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 .kpi-clickable:hover { background: var(--surface2); }
 .kpi-click-hint { font-size: 0.54rem; color: var(--accent); margin-top: 4px; opacity: 0.7; }
 
+/* COPY SELECTED */
+.copy-selected-btn { background: var(--accent); border: none; color: #fff; font-family: "DM Mono", monospace; font-size: 0.58rem; padding: 5px 12px; border-radius: 5px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; transition: all 0.15s; }
+.copy-selected-btn:hover { opacity: 0.85; }
+.copy-selected-btn.copied { background: var(--success); }
+.clear-sel-btn { background: transparent; border: 1px solid var(--border); color: var(--muted); font-family: "DM Mono", monospace; font-size: 0.56rem; padding: 4px 10px; border-radius: 5px; cursor: pointer; transition: all 0.15s; }
+.clear-sel-btn:hover { border-color: var(--accent); color: var(--accent); }
+.row-checkbox { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.select-all-checkbox { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+
 /* UPLOAD */
 .upload-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; }
 .upload-bar .upload-label { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
@@ -260,15 +269,7 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
     <div class="kpi red kpi-clickable" onclick="showLateOrders()"><div class="kpi-label">Late Orders</div><div class="kpi-value" id="cts-kpi-late">0</div><div class="kpi-sub" id="cts-kpi-late-sub"></div><div class="kpi-click-hint">click to view order item IDs</div></div>
     <div class="kpi green"><div class="kpi-label">Ordered</div><div class="kpi-value" id="cts-kpi-ordered">0</div><div class="kpi-sub" id="cts-kpi-ordered-pct"></div></div>
   </div>
-  <div class="grid-2">
-    <div class="card"><div class="card-title">Order Status Breakdown</div><div class="donut-wrap"><svg width="100" height="100" id="cts-donut"></svg><div class="donut-legend" id="cts-donut-legend"></div></div></div>
-    <div class="card"><div class="card-title">Top Product Categories</div><div class="bar-list" id="cts-cat-bars"></div></div>
-  </div>
-  <div class="grid-2">
-    <div class="card"><div class="card-title">Orders by Assignee</div><div class="bar-list" id="cts-assignee-bars"></div></div>
-    <div class="card"><div class="card-title">Orders by Region</div><div class="bar-list" id="cts-region-bars"></div></div>
-  </div>
-  <div class="data-table-wrap"><div class="card-title">All Orders</div><div style="overflow-x:auto"><table class="data-table" id="cts-table"></table></div><div class="table-footer"><span id="cts-table-info"></span><div><button class="page-btn" id="cts-prev" onclick="paginate('cts',-1)">&laquo; Prev</button> <button class="page-btn" id="cts-next" onclick="paginate('cts',1)">Next &raquo;</button></div></div></div>
+  <div class="data-table-wrap"><div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">All Orders<div id="cts-copy-bar" style="display:none;align-items:center;gap:8px;"><span style="font-size:0.58rem;color:var(--muted);" id="cts-sel-count">0 selected</span><button class="copy-selected-btn" onclick="copySelectedRows('cts')">Copy Selected</button><button class="clear-sel-btn" onclick="clearSelection('cts')">Clear</button></div></div><div style="overflow-x:auto"><table class="data-table" id="cts-table"></table></div><div class="table-footer"><span id="cts-table-info"></span><div><button class="page-btn" id="cts-prev" onclick="paginate('cts',-1)">&laquo; Prev</button> <button class="page-btn" id="cts-next" onclick="paginate('cts',1)">Next &raquo;</button></div></div></div>
 </div>
 
 <!-- ====== CLICK TO HOME ====== -->
@@ -281,22 +282,7 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
     <div class="kpi red kpi-clickable" onclick="showExceptions()"><div class="kpi-label">Delivery Exceptions</div><div class="kpi-value" id="cth-kpi-exc">0</div><div class="kpi-sub" id="cth-kpi-exc-pct"></div><div class="kpi-click-hint">click to view order item IDs</div></div>
     <div class="kpi green"><div class="kpi-label">Shipped</div><div class="kpi-value" id="cth-kpi-shipped">0</div><div class="kpi-sub" id="cth-kpi-shipped-pct"></div></div>
   </div>
-  <div class="grid-2">
-    <div class="card"><div class="card-title">Order Status Breakdown</div><div class="donut-wrap"><svg width="100" height="100" id="cth-donut"></svg><div class="donut-legend" id="cth-donut-legend"></div></div></div>
-    <div class="card"><div class="card-title">Top Product Categories</div><div class="bar-list" id="cth-cat-bars"></div></div>
-  </div>
-  <div class="grid-3">
-    <div class="card"><div class="card-title">Orders by Assignee</div><div class="bar-list" id="cth-assignee-bars"></div></div>
-    <div class="card"><div class="card-title">Late Orders Summary</div>
-      <div style="display:flex;gap:18px;align-items:flex-start;margin-top:4px;">
-        <div><div class="kpi-value" style="color:var(--danger);font-family:Syne,sans-serif;font-size:1.8rem;" id="cth-late-count">0</div><div style="font-size:0.6rem;color:var(--muted);margin-top:4px;">orders are late</div></div>
-        <div><div class="kpi-value" style="color:var(--warn);font-family:Syne,sans-serif;font-size:1.8rem;" id="cth-late-pct">0%</div><div style="font-size:0.6rem;color:var(--muted);margin-top:4px;">of all orders</div></div>
-        <div><div class="kpi-value" style="color:var(--accent2);font-family:Syne,sans-serif;font-size:1.8rem;" id="cth-late-avg">0</div><div style="font-size:0.6rem;color:var(--muted);margin-top:4px;">avg days late</div></div>
-      </div>
-    </div>
-    <div class="card"><div class="card-title">Delivery Exceptions by Org</div><table class="exc-table"><thead><tr><th>Organization</th><th style="text-align:right">Exceptions</th></tr></thead><tbody id="cth-exc-table"></tbody></table></div>
-  </div>
-  <div class="data-table-wrap"><div class="card-title">All Orders</div><div style="overflow-x:auto"><table class="data-table" id="cth-table"></table></div><div class="table-footer"><span id="cth-table-info"></span><div><button class="page-btn" id="cth-prev" onclick="paginate('cth',-1)">&laquo; Prev</button> <button class="page-btn" id="cth-next" onclick="paginate('cth',1)">Next &raquo;</button></div></div></div>
+  <div class="data-table-wrap"><div class="card-title" style="display:flex;align-items:center;justify-content:space-between;">All Orders<div id="cth-copy-bar" style="display:none;align-items:center;gap:8px;"><span style="font-size:0.58rem;color:var(--muted);" id="cth-sel-count">0 selected</span><button class="copy-selected-btn" onclick="copySelectedRows('cth')">Copy Selected</button><button class="clear-sel-btn" onclick="clearSelection('cth')">Clear</button></div></div><div style="overflow-x:auto"><table class="data-table" id="cth-table"></table></div><div class="table-footer"><span id="cth-table-info"></span><div><button class="page-btn" id="cth-prev" onclick="paginate('cth',-1)">&laquo; Prev</button> <button class="page-btn" id="cth-next" onclick="paginate('cth',1)">Next &raquo;</button></div></div></div>
 </div>
 
 <!-- ====== UNASSIGNED ====== -->
@@ -308,11 +294,6 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
     <div class="kpi orange"><div class="kpi-label">Organizations</div><div class="kpi-value" id="ua-kpi-orgs">0</div><div class="kpi-sub">with unassigned orders</div></div>
     <div class="kpi red kpi-clickable" onclick="showUnassignedOrdered()"><div class="kpi-label">Ordered</div><div class="kpi-value" id="ua-kpi-ordered">0</div><div class="kpi-sub" id="ua-kpi-ordered-pct"></div><div class="kpi-click-hint">click to view order item IDs</div></div>
     <div class="kpi green"><div class="kpi-label">Countries</div><div class="kpi-value" id="ua-kpi-countries">0</div><div class="kpi-sub">unique countries</div></div>
-  </div>
-  <div class="grid-3">
-    <div class="card"><div class="card-title">By Organization</div><div class="bar-list" id="ua-org-bars"></div></div>
-    <div class="card"><div class="card-title">By Country</div><div class="bar-list" id="ua-country-bars"></div></div>
-    <div class="card"><div class="card-title">By Status</div><div class="donut-wrap"><svg width="100" height="100" id="ua-donut"></svg><div class="donut-legend" id="ua-donut-legend"></div></div></div>
   </div>
   <div class="data-table-wrap"><div class="card-title">All Unassigned Orders</div><div style="overflow-x:auto"><table class="data-table" id="ua-table"></table></div><div class="table-footer"><span id="ua-table-info"></span><div><button class="page-btn" id="ua-prev" onclick="paginate('unassigned',-1)">&laquo; Prev</button> <button class="page-btn" id="ua-next" onclick="paginate('unassigned',1)">Next &raquo;</button></div></div></div>
 </div>
@@ -591,8 +572,8 @@ const pageState = { cts: 0, cth: 0, unassigned: 0 };
 const filteredCache = { cts: [], cth: [], unassigned: [] };
 
 const TABLE_COLS = {
-  cts: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Country","Region code","Days late","SLO","CTS Business Days","Notes"],
-  cth: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Country","Warehouse name","Days late","CTH Business Days","Notes"],
+  cts: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Recipient","Country","Region code","Days late","SLO","CTS Business Days","Notes"],
+  cth: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Recipient","Country","Warehouse name","Days late","CTH Business Days","Notes"],
   unassigned: ["Order item ID","Order ID","Organization name","Item Status","Country code","Product title","Recipient","Created At","Office name"]
 };
 
@@ -607,27 +588,35 @@ function extractCotRef(notes) {
   return match ? match[0] : null;
 }
 
+var selectedRows = { cts: new Set(), cth: new Set() };
+
 function renderTable(tab) {
-  const rows = filteredCache[tab];
-  const cols = TABLE_COLS[tab];
-  const tableIds = {"unassigned":"ua-table"};
-  const table = document.getElementById(tableIds[tab] || tab + "-table");
-  const page = pageState[tab];
-  const start = page * PAGE_SIZE;
-  const pageRows = rows.slice(start, start + PAGE_SIZE);
-  let html = "<thead><tr>" + cols.map(function(c){return "<th>"+c+"</th>";}).join("") + "<th>Jira</th></tr></thead><tbody>";
+  var hasCheckbox = (tab === "cts" || tab === "cth");
+  var rows = filteredCache[tab];
+  var cols = TABLE_COLS[tab];
+  var tableIds = {"unassigned":"ua-table"};
+  var table = document.getElementById(tableIds[tab] || tab + "-table");
+  var page = pageState[tab];
+  var start = page * PAGE_SIZE;
+  var pageRows = rows.slice(start, start + PAGE_SIZE);
+  var html = "<thead><tr>";
+  if (hasCheckbox) html += '<th style="width:30px"><input type="checkbox" class="select-all-checkbox" onchange="toggleSelectAll(\''+tab+'\', this)" /></th>';
+  html += cols.map(function(c){return "<th>"+c+"</th>";}).join("") + "<th>Jira</th></tr></thead><tbody>";
   pageRows.forEach(function(r, idx) {
     var rowIdx = start + idx;
+    var oid = r["Order item ID"] || r["Order ID"] || "";
+    var isChecked = hasCheckbox && selectedRows[tab] && selectedRows[tab].has(rowIdx);
     var notes = r["Notes"] || "";
     var cotRef = (tab === "cts" || tab === "cth") ? extractCotRef(notes) : null;
-    html += "<tr>" + cols.map(function(c) {
-      const v = r[c] != null ? r[c] : "";
+    html += "<tr>";
+    if (hasCheckbox) html += '<td><input type="checkbox" class="row-checkbox" data-row="'+rowIdx+'" '+(isChecked?'checked':'')+' onchange="toggleRowSelect(\''+tab+'\','+rowIdx+', this)" /></td>';
+    html += cols.map(function(c) {
+      var v = r[c] != null ? r[c] : "";
       if (c === "Status" || c === "Item Status") return "<td>"+statusBadge(v)+"</td>";
-      if (c === "Order item ID" || c === "Order ID") return '<td style="white-space:nowrap"><span title="'+v+'" style="margin-right:4px">'+(v.length>8?v.slice(0,8)+'…':v)+'</span><button class="copy-btn" data-oid="'+v+'">Copy</button></td>';
-      if (c === "Notes") return '<td class="notes-cell" title="'+v.replace(/"/g,'&quot;')+'">'+v+'</td>';
+      if (c === "Order item ID" || c === "Order ID") return '<td style="white-space:nowrap"><span title="'+v+'" style="margin-right:4px">'+(v.length>8?v.slice(0,8)+'...':v)+'</span><button class="copy-btn" data-oid="'+v+'">Copy</button></td>';
+      if (c === "Notes") return '<td class="notes-cell" title="'+v.toString().replace(/"/g,'&quot;')+'">'+v+'</td>';
       return '<td title="'+v+'">'+v+'</td>';
     }).join("");
-    // Jira column: View Ticket if COT ref exists, else Raise Ticket
     if (cotRef) {
       html += '<td><button class="jira-btn-view" onclick="openViewTicketModal(\''+tab+'\','+rowIdx+',\''+cotRef+'\')">View Ticket</button></td>';
     } else {
@@ -637,11 +626,12 @@ function renderTable(tab) {
   });
   html += "</tbody>";
   table.innerHTML = html;
-  const prefixMap = {"unassigned":"ua"};
-  const prefix = prefixMap[tab] || tab;
+  var prefixMap = {"unassigned":"ua"};
+  var prefix = prefixMap[tab] || tab;
   document.getElementById(prefix + "-table-info").textContent = rows.length ? "Showing "+(start+1)+"-"+Math.min(start+PAGE_SIZE, rows.length)+" of "+rows.length : "No results";
   document.getElementById(prefix + "-prev").disabled = page === 0;
   document.getElementById(prefix + "-next").disabled = start + PAGE_SIZE >= rows.length;
+  if (hasCheckbox) updateCopyBar(tab);
 }
 
 function paginate(tab, dir) {
