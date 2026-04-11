@@ -401,7 +401,7 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 
 <script>
 let DATA = {"clickToShip": [], "clickToHome": [], "unassigned": []};
-const EXCLUDED_ORGS = {"Dunder Mifflin Paper Company":1, "Start Industries":1, "Abnormal Sandbox":1, "Spotify":1};
+const EXCLUDED_ORGS = {"Dunder Mifflin Paper Company":1, "Start Industries":1, "Abnormal Sandbox":1, "Spotify":1, "secondbase":1, "Stark Industries":1, "Sandbox AQ Demo":1};
 // ===== REGION MAPPING =====
 var REGION_MAP = {
   "US": ["US"],
@@ -1537,6 +1537,7 @@ const ORDER_FIELDS = `
     reservedInventory { id warehouse { name } region { regionCode } }
     orderFulfilment { method warehouseId }
     notes { id content createdAt }
+    orderItemNote
   }
   shippingAddress { countryCode }
 `;
@@ -1596,8 +1597,8 @@ function flattenOrderItems(orders) {
         "Inventory ID": p.inventory ? p.inventory.id : "",
         "Start date": order.createdAt || "",
         "Current Time Local": new Date().toISOString(),
-        "Item Notes": (p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : "",
-        "Notes": (p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : "",
+        "Item Notes": p.orderItemNote || ((p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : ""),
+        "Notes": p.orderItemNote || ((p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : ""),
         "Order item note": "",
         "Office name": "",
         "Timezone": "",
@@ -1731,11 +1732,15 @@ async function fetchLiveData() {
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
 
     // ── 4. NOTES ──
-    // Notes are now fetched inline via product.notes in ORDER_FIELDS
+    // Notes debug: check which field is returning data
     var ctsWithNotes = DATA.clickToShip.filter(function(r){ return r["Notes"]; }).length;
     var cthWithNotes = DATA.clickToHome.filter(function(r){ return r["Notes"]; }).length;
     console.log("[Notes] CTS rows with notes: " + ctsWithNotes + "/" + DATA.clickToShip.length);
     console.log("[Notes] CTH rows with notes: " + cthWithNotes + "/" + DATA.clickToHome.length);
+    // Sample first row with notes to verify source
+    var sampleCts = DATA.clickToShip.find(function(r){ return r["Notes"]; });
+    if (sampleCts) console.log("[Notes] CTS sample note:", sampleCts["Notes"].substring(0, 100));
+    else console.log("[Notes] WARNING: No CTS rows have notes. Check if orderItemNote field exists in API schema.");
 
     // Render
     populateGlobalFilters();
