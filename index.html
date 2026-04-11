@@ -1519,9 +1519,8 @@ async function fetchLiveData() {
     // ── 1. CLICK TO SHIP ──
     // Key filter: fulfilledNotShipped=true (items assigned to fulfilment but not yet shipped)
     // CTS = items with WAREHOUSE fulfilment method + target statuses
-    var ctsDateFilter = makeDateFilter(25);
     var ctsOrders = await fetchAllPages(
-      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { fulfilledNotShipped: true, orderItemStatuses: [PROCESSING, ORDERED, APPROVED]' + ctsDateFilter + ' }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
+      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { fulfilledNotShipped: true, orderItemStatuses: [PROCESSING, ORDERED, APPROVED] }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
       'getAllOrders', 'Click To Ship'
     );
     var ctsRows = flattenOrderItems(ctsOrders);
