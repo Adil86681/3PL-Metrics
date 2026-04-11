@@ -787,29 +787,35 @@ function clearSelection(tab) {
 function copySelectedRows(tab) {
   var rows = filteredCache[tab] || [];
   var indices = Array.from(selectedRows[tab]).sort(function(a, b) { return a - b; });
-
-  var headers = "Order Item ID\tOrg\tRegion\tRecipient";
-  var lines = [headers];
-
+  var dataRows = [];
   indices.forEach(function(idx) {
     if (idx < rows.length) {
       var row = rows[idx];
-      var orderId = row["Order Item ID"] || "";
-      var org = row["Organization name"] || row["Org"] || "";
-      var countryCode = row["Country"] || row["Country code"] || "";
-      var region = getCountryName(countryCode);
-      var recipient = row["Recipient"] || row["Person name"] || "";
-
-      lines.push(orderId + "\t" + org + "\t" + region + "\t" + recipient);
+      dataRows.push({
+        id: row["Order item ID"] || row["Order Item ID"] || "",
+        org: row["Organization name"] || "",
+        region: getCountryName(row["Country"] || row["Country code"] || ""),
+        recipient: row["Recipient"] || row["Person name"] || ""
+      });
     }
   });
-
-  var tsv = lines.join("\n");
-
-  navigator.clipboard.writeText(tsv).then(function() {
-    var copyBtn = document.getElementById(tab + "-copy-bar");
-    if (!copyBtn) return;
-    var btn = copyBtn.querySelector(".copy-selected-btn");
+  // Build HTML table for Teams
+  var html = '<table><thead><tr><th>Order Item ID</th><th>Org</th><th>Region</th><th>Recipient</th></tr></thead><tbody>';
+  dataRows.forEach(function(d) {
+    html += '<tr><td>' + d.id + '</td><td>' + d.org + '</td><td>' + d.region + '</td><td>' + d.recipient + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  // Build plain text fallback
+  var plain = "Order Item ID\tOrg\tRegion\tRecipient\n";
+  dataRows.forEach(function(d) { plain += d.id + "\t" + d.org + "\t" + d.region + "\t" + d.recipient + "\n"; });
+  // Copy as HTML + plain text
+  var blob = new Blob([html], { type: "text/html" });
+  var textBlob = new Blob([plain], { type: "text/plain" });
+  var item = new ClipboardItem({ "text/html": blob, "text/plain": textBlob });
+  navigator.clipboard.write([item]).then(function() {
+    var copyBar = document.getElementById(tab + "-copy-bar");
+    if (!copyBar) return;
+    var btn = copyBar.querySelector(".copy-selected-btn");
     if (btn) {
       btn.textContent = "Copied!";
       btn.classList.add("copied");
@@ -817,6 +823,8 @@ function copySelectedRows(tab) {
     }
   }).catch(function(err) {
     console.error("Failed to copy:", err);
+    // Fallback to plain text
+    navigator.clipboard.writeText(plain);
   });
 }
 
