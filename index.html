@@ -242,6 +242,10 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
   <button class="upload-btn-sm" onclick="document.getElementById('bulk-upload').click()">Upload CSVs</button>
   <input type="file" id="bulk-upload" class="upload-file-input" accept=".csv" multiple onchange="handleBulkUpload(this.files)">
   <span class="upload-status" id="bulk-upload-status"></span>
+  <span style="margin-left:8px;border-left:1px solid var(--border);padding-left:12px;"></span>
+  <button class="upload-btn-sm" style="border-color:var(--accent);color:var(--accent);" onclick="document.getElementById('notes-upload').click()">Upload Notes CSV</button>
+  <input type="file" id="notes-upload" class="upload-file-input" accept=".csv" onchange="handleNotesUpload(this.files[0])">
+  <span class="upload-status" id="notes-upload-status"></span>
 </div>
 
 <div class="filter-bar" id="global-filters">
@@ -1149,6 +1153,77 @@ function finishBulkUpload(matched, unmatched) {
   }
 }
 
+// ===== NOTES CSV UPLOAD =====
+window._notesMap = {};
+
+function handleNotesUpload(file) {
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var rows = parseCSV(e.target.result);
+    if (!rows.length) {
+      showUploadStatus("notes-upload-status", "No rows found", true);
+      return;
+    }
+    // Auto-detect which column is the order item ID and which is the note
+    var headers = Object.keys(rows[0]);
+    console.log("[Notes CSV] Headers found:", headers.join(", "));
+    // Find ID column (look for common patterns)
+    var idCol = headers.find(function(h) {
+      var low = h.toLowerCase();
+      return low.indexOf("order_item_id") !== -1 || low.indexOf("order item id") !== -1 || low.indexOf("orderitemid") !== -1 || low === "id" || low === "order_id";
+    }) || headers[0];
+    // Find note column
+    var noteCol = headers.find(function(h) {
+      var low = h.toLowerCase();
+      return low.indexOf("note") !== -1 || low.indexOf("comment") !== -1 || low.indexOf("additional") !== -1;
+    });
+    if (!noteCol) {
+      // Use last column as fallback
+      noteCol = headers[headers.length - 1];
+    }
+    console.log("[Notes CSV] Using ID column: '" + idCol + "', Note column: '" + noteCol + "'");
+    // Build map
+    window._notesMap = {};
+    var count = 0;
+    rows.forEach(function(r) {
+      var id = (r[idCol] || "").toString().trim();
+      var note = (r[noteCol] || "").toString().trim();
+      if (id && note) {
+        window._notesMap[id] = note;
+        count++;
+      }
+    });
+    console.log("[Notes CSV] Loaded " + count + " notes");
+    mergeNotesIntoData();
+    renderAll();
+    showUploadStatus("notes-upload-status", count + " notes loaded", false);
+  };
+  reader.onerror = function() {
+    showUploadStatus("notes-upload-status", "Error reading file", true);
+  };
+  reader.readAsText(file);
+  document.getElementById("notes-upload").value = "";
+}
+
+function mergeNotesIntoData() {
+  var map = window._notesMap;
+  if (!map || !Object.keys(map).length) return;
+  var merged = 0;
+  [DATA.clickToShip, DATA.clickToHome, DATA.unassigned].forEach(function(ds) {
+    if (!Array.isArray(ds)) return;
+    ds.forEach(function(r) {
+      var oid = r["Order item ID"] || r["Order Item ID"] || "";
+      if (oid && map[oid]) {
+        r["Notes"] = map[oid];
+        r["Item Notes"] = map[oid];
+        merged++;
+      }
+    });
+  });
+  console.log("[Notes] Merged notes into " + merged + " rows");
+}
+
 // ===== PER-TAB UPLOAD =====
 function handleTabUpload(tab, file) {
   if (!file) return;
@@ -1596,8 +1671,8 @@ function flattenOrderItems(orders) {
         "Inventory ID": p.inventory ? p.inventory.id : "",
         "Start date": order.createdAt || "",
         "Current Time Local": new Date().toISOString(),
-        "Item Notes": p.orderItemNote || ((p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : ""),
-        "Notes": p.orderItemNote || ((p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : ""),
+        "Item Notes": (p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : "",
+        "Notes": (p.notes && p.notes.length) ? p.notes.map(function(n){return n.content;}).join(" | ") : "",
         "Order item note": "",
         "Office name": "",
         "Timezone": "",
@@ -1730,19 +1805,11 @@ async function fetchLiveData() {
     totalLoaded += DATA.unassigned.length;
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
 
-    // ── 4. NOTES + SCHEMA PROBE ──
-    var ctsWithNotes = DATA.clickToShip.filter(function(r){ return r["Notes"]; }).length;
-    var cthWithNotes = DATA.clickToHome.filter(function(r){ return r["Notes"]; }).length;
-    console.log("[Notes] CTS rows with notes: " + ctsWithNotes + "/" + DATA.clickToShip.length);
-    console.log("[Notes] CTH rows with notes: " + cthWithNotes + "/" + DATA.clickToHome.length);
-    // Probe schema for note-related fields on OrderItemResponse
-    try {
-      var schemaResult = await gql('{ __type(name: "OrderItemResponse") { fields { name type { name kind ofType { name } } } } }');
-      var fields = schemaResult.data.__type ? schemaResult.data.__type.fields : [];
-      var noteFields = fields.filter(function(f) { return f.name.toLowerCase().indexOf("note") !== -1; });
-      console.log("[Schema] OrderItemResponse note-related fields:", JSON.stringify(noteFields, null, 2));
-      console.log("[Schema] ALL OrderItemResponse fields:", fields.map(function(f) { return f.name; }).join(", "));
-    } catch(e) { console.log("[Schema] Introspection failed:", e.message); }
+    // ── 4. NOTES ──
+    // Notes are loaded separately via CSV upload — merge into data if available
+    if (window._notesMap && Object.keys(window._notesMap).length) {
+      mergeNotesIntoData();
+    }
 
     // Render
     populateGlobalFilters();
