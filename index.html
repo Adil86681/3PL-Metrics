@@ -1563,12 +1563,8 @@ async function fetchLiveData() {
     );
     var uaRows = flattenOrderItems(uaOrders);
     // Filter to only ORDERED/APPROVED product-level statuses
-    var uaFiltered = uaRows.filter(function(r) {
+    DATA.unassigned = uaRows.filter(function(r) {
       return r._rawStatus === 'ORDERED' || r._rawStatus === 'APPROVED';
-    });
-    // Unassigned = has reserved inventory but no fulfilment assignment
-    DATA.unassigned = uaFiltered.filter(function(r) {
-      return r._hasReservedInventory && !r._hasOrderFulfilment;
     });
     totalLoaded += DATA.unassigned.length;
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
