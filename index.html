@@ -640,6 +640,186 @@ function paginate(tab, dir) {
   renderTable(tab);
 }
 
+// ===== SELECTION & COPY FUNCTIONS =====
+var COUNTRY_NAMES = {
+  US: "United States",
+  CA: "Canada",
+  GB: "United Kingdom",
+  DE: "Germany",
+  FR: "France",
+  ES: "Spain",
+  IT: "Italy",
+  NL: "Netherlands",
+  BE: "Belgium",
+  AT: "Austria",
+  CH: "Switzerland",
+  SE: "Sweden",
+  NO: "Norway",
+  DK: "Denmark",
+  FI: "Finland",
+  IE: "Ireland",
+  PT: "Portugal",
+  PL: "Poland",
+  CZ: "Czech Republic",
+  HU: "Hungary",
+  RO: "Romania",
+  BG: "Bulgaria",
+  HR: "Croatia",
+  SK: "Slovakia",
+  SI: "Slovenia",
+  EE: "Estonia",
+  LV: "Latvia",
+  LT: "Lithuania",
+  LU: "Luxembourg",
+  MT: "Malta",
+  CY: "Cyprus",
+  GR: "Greece",
+  IS: "Iceland",
+  IN: "India",
+  BR: "Brazil",
+  MX: "Mexico",
+  AR: "Argentina",
+  CL: "Chile",
+  CO: "Colombia",
+  PE: "Peru",
+  JP: "Japan",
+  KR: "South Korea",
+  AU: "Australia",
+  NZ: "New Zealand",
+  SG: "Singapore",
+  IL: "Israel",
+  AE: "United Arab Emirates",
+  ZA: "South Africa",
+  PH: "Philippines",
+  NG: "Nigeria",
+  KE: "Kenya",
+  EG: "Egypt",
+  TR: "Turkey",
+  TH: "Thailand",
+  VN: "Vietnam",
+  ID: "Indonesia",
+  MY: "Malaysia",
+  PK: "Pakistan",
+  BD: "Bangladesh",
+  UA: "Ukraine",
+  RU: "Russia",
+  CN: "China",
+  TW: "Taiwan",
+  HK: "Hong Kong",
+  SA: "Saudi Arabia",
+  QA: "Qatar",
+  BH: "Bahrain",
+  KW: "Kuwait",
+  OM: "Oman",
+  JO: "Jordan",
+  LB: "Lebanon",
+  CR: "Costa Rica",
+  PA: "Panama",
+  DO: "Dominican Republic",
+  EC: "Ecuador",
+  GT: "Guatemala",
+  HN: "Honduras",
+  NI: "Nicaragua",
+  SV: "El Salvador",
+  UY: "Uruguay",
+  VE: "Venezuela",
+  BO: "Bolivia",
+  PY: "Paraguay",
+  PR: "Puerto Rico",
+  CU: "Cuba"
+};
+
+function getCountryName(code) {
+  if (!code) return code;
+  return COUNTRY_NAMES[code] || code;
+}
+
+function toggleRowSelect(tab, rowIdx, checkbox) {
+  if (checkbox.checked) {
+    selectedRows[tab].add(rowIdx);
+  } else {
+    selectedRows[tab].delete(rowIdx);
+  }
+  updateCopyBar(tab);
+}
+
+function toggleSelectAll(tab, checkbox) {
+  var rows = filteredCache[tab] || [];
+  var start = pageState[tab] * PAGE_SIZE;
+  var pageRows = rows.slice(start, start + PAGE_SIZE);
+
+  if (checkbox.checked) {
+    pageRows.forEach(function(row, idx) {
+      var rowIdx = start + idx;
+      selectedRows[tab].add(rowIdx);
+    });
+  } else {
+    pageRows.forEach(function(row, idx) {
+      var rowIdx = start + idx;
+      selectedRows[tab].delete(rowIdx);
+    });
+  }
+
+  renderTable(tab);
+  updateCopyBar(tab);
+}
+
+function updateCopyBar(tab) {
+  var copyBar = document.getElementById(tab + "-copy-bar");
+  var selCount = document.getElementById(tab + "-sel-count");
+  var count = selectedRows[tab].size;
+
+  if (copyBar) {
+    selCount.textContent = count + " selected";
+    if (count > 0) {
+      copyBar.style.display = "flex";
+    } else {
+      copyBar.style.display = "none";
+    }
+  }
+}
+
+function clearSelection(tab) {
+  selectedRows[tab].clear();
+  renderTable(tab);
+}
+
+function copySelectedRows(tab) {
+  var rows = filteredCache[tab] || [];
+  var indices = Array.from(selectedRows[tab]).sort(function(a, b) { return a - b; });
+
+  var headers = "Order Item ID\tOrg\tRegion\tRecipient";
+  var lines = [headers];
+
+  indices.forEach(function(idx) {
+    if (idx < rows.length) {
+      var row = rows[idx];
+      var orderId = row["Order Item ID"] || "";
+      var org = row["Organization name"] || row["Org"] || "";
+      var countryCode = row["Country"] || row["Country code"] || "";
+      var region = getCountryName(countryCode);
+      var recipient = row["Recipient"] || row["Person name"] || "";
+
+      lines.push(orderId + "\t" + org + "\t" + region + "\t" + recipient);
+    }
+  });
+
+  var tsv = lines.join("\n");
+
+  navigator.clipboard.writeText(tsv).then(function() {
+    var copyBtn = document.getElementById(tab + "-copy-bar");
+    if (!copyBtn) return;
+    var btn = copyBtn.querySelector(".copy-selected-btn");
+    if (btn) {
+      btn.textContent = "Copied!";
+      btn.classList.add("copied");
+      setTimeout(function() { btn.textContent = "Copy Selected"; btn.classList.remove("copied"); }, 1500);
+    }
+  }).catch(function(err) {
+    console.error("Failed to copy:", err);
+  });
+}
+
 // ===== MODAL =====
 function openModal(title, subtitle, items) {
   document.getElementById("modal-title").textContent = title;
@@ -735,10 +915,6 @@ function renderCTS() {
   document.getElementById("cts-kpi-ordered").textContent = ordered;
   document.getElementById("cts-kpi-ordered-pct").textContent = pct(ordered, t) + " of total";
 
-  renderDonut("cts-donut", "cts-donut-legend", sc, t);
-  renderBars("cts-cat-bars", countBy(rows, "Category"), 8);
-  renderBars("cts-assignee-bars", countBy(rows, "Assigned to"), 7);
-  renderBars("cts-region-bars", countBy(rows, "Region code"), 10);
   pageState.cts = 0; renderTable("cts");
 }
 
@@ -763,18 +939,6 @@ function renderCTH() {
   document.getElementById("cth-kpi-exc-pct").textContent = pct(excUniqueCount, t) + " of total";
   document.getElementById("cth-kpi-shipped").textContent = shipped;
   document.getElementById("cth-kpi-shipped-pct").textContent = pct(shipped, t) + " of total";
-  document.getElementById("cth-late-count").textContent = lateUniqueCount;
-  document.getElementById("cth-late-pct").textContent = t ? Math.round(lateUniqueCount/t*100)+"%" : "0%";
-  document.getElementById("cth-late-avg").textContent = avgLate;
-
-  renderDonut("cth-donut", "cth-donut-legend", sc, t);
-  renderBars("cth-cat-bars", countBy(rows, "Category"), 8);
-  renderBars("cth-assignee-bars", countBy(rows, "Assigned to"), 7);
-
-  const excRows = rows.filter(function(r) { return r._orderStatus === "DELIVERY_EXCEPTION" || r.Status === "Delivery Exception"; });
-  const excOrgs = topN(countBy(excRows, "Organization name"), 8);
-  const excTable = document.getElementById("cth-exc-table");
-  excTable.innerHTML = excOrgs.length ? excOrgs.map(function(e) { return '<tr><td>'+e[0]+'</td><td style="text-align:right"><span class="exc-badge">'+e[1]+'</span></td></tr>'; }).join("") : '<tr><td colspan="2" style="color:var(--muted)">No exceptions</td></tr>';
   pageState.cth = 0; renderTable("cth");
 }
 
@@ -795,9 +959,6 @@ function renderUA() {
   document.getElementById("ua-kpi-ordered-pct").textContent = pct(orderedUniqueCount, t) + " of total";
   document.getElementById("ua-kpi-countries").textContent = countries.size;
 
-  renderBars("ua-org-bars", countBy(rows, "Organization name"), 10);
-  renderBars("ua-country-bars", countBy(rows, "Country code"), 10);
-  renderDonut("ua-donut", "ua-donut-legend", sc, t);
   pageState.unassigned = 0; renderTable("unassigned");
 }
 
@@ -1609,7 +1770,6 @@ function __initDashboard() {
   try { populateGlobalFilters(); } catch(e) { console.error("populateGlobalFilters failed:", e); }
   try { renderAll(); } catch(e) { console.error("renderAll failed:", e); }
   setTimeout(fetchLiveData, 500);
-  setInterval(fetchLiveData, 5 * 60 * 1000);
 }
 
 function __showDashboard(clerk) {
