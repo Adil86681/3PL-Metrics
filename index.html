@@ -1557,8 +1557,9 @@ async function fetchLiveData() {
     // ── 3. UNASSIGNED ORDERS ──
     // fulfilledNotShipped: false = items NOT yet assigned to fulfilment
     // Combined with orderItemStatuses [ORDERED, APPROVED] to narrow results
+    var uaYearStart = new Date().getFullYear() + '-01-01';
     var uaOrders = await fetchAllPages(
-      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { fulfilledNotShipped: false, orderItemStatuses: [ORDERED, APPROVED] }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
+      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { fulfilledNotShipped: false, orderItemStatuses: [ORDERED, APPROVED], createdAtDateRange: { begin: "' + uaYearStart + '", end: "' + dateToStr + '" } }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
       'getAllOrders', 'Unassigned Orders'
     );
     var uaRows = flattenOrderItems(uaOrders);
