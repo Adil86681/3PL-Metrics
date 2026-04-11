@@ -1537,7 +1537,6 @@ const ORDER_FIELDS = `
     reservedInventory { id warehouse { name } region { regionCode } }
     orderFulfilment { method warehouseId }
     notes { id content createdAt }
-    orderItemNote
   }
   shippingAddress { countryCode }
 `;
@@ -1731,16 +1730,19 @@ async function fetchLiveData() {
     totalLoaded += DATA.unassigned.length;
     console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
 
-    // ── 4. NOTES ──
-    // Notes debug: check which field is returning data
+    // ── 4. NOTES + SCHEMA PROBE ──
     var ctsWithNotes = DATA.clickToShip.filter(function(r){ return r["Notes"]; }).length;
     var cthWithNotes = DATA.clickToHome.filter(function(r){ return r["Notes"]; }).length;
     console.log("[Notes] CTS rows with notes: " + ctsWithNotes + "/" + DATA.clickToShip.length);
     console.log("[Notes] CTH rows with notes: " + cthWithNotes + "/" + DATA.clickToHome.length);
-    // Sample first row with notes to verify source
-    var sampleCts = DATA.clickToShip.find(function(r){ return r["Notes"]; });
-    if (sampleCts) console.log("[Notes] CTS sample note:", sampleCts["Notes"].substring(0, 100));
-    else console.log("[Notes] WARNING: No CTS rows have notes. Check if orderItemNote field exists in API schema.");
+    // Probe schema for note-related fields on OrderItemResponse
+    try {
+      var schemaResult = await gql('{ __type(name: "OrderItemResponse") { fields { name type { name kind ofType { name } } } } }');
+      var fields = schemaResult.data.__type ? schemaResult.data.__type.fields : [];
+      var noteFields = fields.filter(function(f) { return f.name.toLowerCase().indexOf("note") !== -1; });
+      console.log("[Schema] OrderItemResponse note-related fields:", JSON.stringify(noteFields, null, 2));
+      console.log("[Schema] ALL OrderItemResponse fields:", fields.map(function(f) { return f.name; }).join(", "));
+    } catch(e) { console.log("[Schema] Introspection failed:", e.message); }
 
     // Render
     populateGlobalFilters();
