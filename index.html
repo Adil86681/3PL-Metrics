@@ -242,10 +242,6 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
   <button class="upload-btn-sm" onclick="document.getElementById('bulk-upload').click()">Upload CSVs</button>
   <input type="file" id="bulk-upload" class="upload-file-input" accept=".csv" multiple onchange="handleBulkUpload(this.files)">
   <span class="upload-status" id="bulk-upload-status"></span>
-  <span style="margin-left:8px;border-left:1px solid var(--border);padding-left:12px;"></span>
-  <button class="upload-btn-sm" style="border-color:var(--accent);color:var(--accent);" onclick="document.getElementById('notes-upload').click()">Upload Notes CSV</button>
-  <input type="file" id="notes-upload" class="upload-file-input" accept=".csv" onchange="handleNotesUpload(this.files[0])">
-  <span class="upload-status" id="notes-upload-status"></span>
 </div>
 
 <div class="filter-bar" id="global-filters">
@@ -265,7 +261,7 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 
 <!-- ====== CLICK TO SHIP ====== -->
 <div class="tab-content active" id="tab-cts">
-  <div class="tab-upload"><button class="upload-btn-sm" onclick="document.getElementById('upload-cts').click()">Upload Click To Ship CSV</button><input type="file" id="upload-cts" class="upload-file-input" accept=".csv" onchange="handleTabUpload('cts', this.files[0])"><span class="upload-status" id="upload-status-cts"></span></div>
+  <div class="tab-upload"><button class="upload-btn-sm" onclick="document.getElementById('upload-cts').click()">Upload Click To Ship CSV</button><input type="file" id="upload-cts" class="upload-file-input" accept=".csv" onchange="handleTabUpload('cts', this.files[0])"><span class="upload-status" id="upload-status-cts"></span><span style="margin-left:8px;border-left:1px solid var(--border);padding-left:10px;"></span><button class="upload-btn-sm" style="border-color:var(--accent);color:var(--accent);" onclick="document.getElementById('notes-upload-cts').click()">Upload CTS Notes CSV</button><input type="file" id="notes-upload-cts" class="upload-file-input" accept=".csv" onchange="handleNotesUpload(this.files[0], 'cts')"><span class="upload-status" id="notes-upload-status-cts"></span></div>
 
   <div class="kpi-row">
     <div class="kpi blue"><div class="kpi-label">Total Orders</div><div class="kpi-value" id="cts-kpi-total">0</div><div class="kpi-sub">across all assignees</div></div>
@@ -278,7 +274,7 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 
 <!-- ====== CLICK TO HOME ====== -->
 <div class="tab-content" id="tab-cth">
-  <div class="tab-upload"><button class="upload-btn-sm" onclick="document.getElementById('upload-cth').click()">Upload Click To Home CSV</button><input type="file" id="upload-cth" class="upload-file-input" accept=".csv" onchange="handleTabUpload('cth', this.files[0])"><span class="upload-status" id="upload-status-cth"></span></div>
+  <div class="tab-upload"><button class="upload-btn-sm" onclick="document.getElementById('upload-cth').click()">Upload Click To Home CSV</button><input type="file" id="upload-cth" class="upload-file-input" accept=".csv" onchange="handleTabUpload('cth', this.files[0])"><span class="upload-status" id="upload-status-cth"></span><span style="margin-left:8px;border-left:1px solid var(--border);padding-left:10px;"></span><button class="upload-btn-sm" style="border-color:var(--accent);color:var(--accent);" onclick="document.getElementById('notes-upload-cth').click()">Upload CTH Notes CSV</button><input type="file" id="notes-upload-cth" class="upload-file-input" accept=".csv" onchange="handleNotesUpload(this.files[0], 'cth')"><span class="upload-status" id="notes-upload-status-cth"></span></div>
 
   <div class="kpi-row">
     <div class="kpi blue"><div class="kpi-label">Total Orders</div><div class="kpi-value" id="cth-kpi-total">0</div><div class="kpi-sub">across all assignees</div></div>
@@ -1173,20 +1169,24 @@ function finishBulkUpload(matched, unmatched) {
 }
 
 // ===== NOTES CSV UPLOAD =====
-window._notesMap = {};
+// Separate maps per tab — never shared, never persisted across page loads
+window._ctsNotesMap = {};
+window._cthNotesMap = {};
 
-function handleNotesUpload(file) {
-  if (!file) return;
+function handleNotesUpload(file, tab) {
+  if (!file || !tab) return;
+  var statusId = "notes-upload-status-" + tab;
+  var inputId  = "notes-upload-" + tab;
   var reader = new FileReader();
   reader.onload = function(e) {
     var rows = parseCSV(e.target.result);
     if (!rows.length) {
-      showUploadStatus("notes-upload-status", "No rows found", true);
+      showUploadStatus(statusId, "No rows found", true);
       return;
     }
     // Auto-detect which column is the order item ID and which is the note
     var headers = Object.keys(rows[0]);
-    console.log("[Notes CSV] Headers found:", headers.join(", "));
+    console.log("[Notes CSV][" + tab + "] Headers found:", headers.join(", "));
     // Find ID column (look for common patterns)
     var idCol = headers.find(function(h) {
       var low = h.toLowerCase();
@@ -1204,48 +1204,59 @@ function handleNotesUpload(file) {
       // Use last column as fallback
       noteCol = headers[headers.length - 1];
     }
-    console.log("[Notes CSV] Using ID column: '" + idCol + "', Note column: '" + noteCol + "'");
-    console.log("[Notes CSV] Sample row keys:", Object.keys(rows[0]).join(", "));
-    console.log("[Notes CSV] Sample note value:", rows[0][noteCol]);
-    // Build map
-    window._notesMap = {};
+    console.log("[Notes CSV][" + tab + "] Using ID column: '" + idCol + "', Note column: '" + noteCol + "'");
+    // Build tab-specific map (replace previous upload for this tab)
+    var map = {};
     var count = 0;
     rows.forEach(function(r) {
       var id = (r[idCol] || "").toString().trim();
       var note = (r[noteCol] || "").toString().trim();
       // Skip if note is just the literal "Notes" (header artifact from Item Notes column)
       if (id && note && note !== "Notes") {
-        window._notesMap[id] = note;
+        map[id] = note;
         count++;
       }
     });
-    console.log("[Notes CSV] Loaded " + count + " notes");
+    if (tab === "cts") window._ctsNotesMap = map;
+    else if (tab === "cth") window._cthNotesMap = map;
+    console.log("[Notes CSV][" + tab + "] Loaded " + count + " notes");
     mergeNotesIntoData();
     renderAll();
-    showUploadStatus("notes-upload-status", count + " notes loaded", false);
+    showUploadStatus(statusId, count + " notes loaded", false);
   };
   reader.onerror = function() {
-    showUploadStatus("notes-upload-status", "Error reading file", true);
+    showUploadStatus(statusId, "Error reading file", true);
   };
   reader.readAsText(file);
-  document.getElementById("notes-upload").value = "";
+  document.getElementById(inputId).value = "";
 }
 
 function mergeNotesIntoData() {
-  var map = window._notesMap;
-  if (!map || !Object.keys(map).length) return;
   var merged = 0;
-  [DATA.clickToShip, DATA.clickToHome, DATA.unassigned].forEach(function(ds) {
-    if (!Array.isArray(ds)) return;
-    ds.forEach(function(r) {
+  // CTS notes → only DATA.clickToShip
+  var ctsMap = window._ctsNotesMap;
+  if (ctsMap && Object.keys(ctsMap).length && Array.isArray(DATA.clickToShip)) {
+    DATA.clickToShip.forEach(function(r) {
       var oid = r["Order item ID"] || r["Order Item ID"] || "";
-      if (oid && map[oid]) {
-        r["Notes"] = map[oid];
-        r["Item Notes"] = map[oid];
+      if (oid && ctsMap[oid]) {
+        r["Notes"] = ctsMap[oid];
+        r["Item Notes"] = ctsMap[oid];
         merged++;
       }
     });
-  });
+  }
+  // CTH notes → only DATA.clickToHome
+  var cthMap = window._cthNotesMap;
+  if (cthMap && Object.keys(cthMap).length && Array.isArray(DATA.clickToHome)) {
+    DATA.clickToHome.forEach(function(r) {
+      var oid = r["Order item ID"] || r["Order Item ID"] || "";
+      if (oid && cthMap[oid]) {
+        r["Notes"] = cthMap[oid];
+        r["Item Notes"] = cthMap[oid];
+        merged++;
+      }
+    });
+  }
   console.log("[Notes] Merged notes into " + merged + " rows");
 }
 
@@ -1866,8 +1877,10 @@ async function fetchLiveData() {
     console.log("[Data] Unassigned:", DATA.unassigned.length);
 
     // ── 4. NOTES ──
-    // Notes are loaded separately via CSV upload — merge into data if available
-    if (window._notesMap && Object.keys(window._notesMap).length) {
+    // Re-apply any notes that were uploaded this session (preserved across refresh)
+    var hasCtsNotes = window._ctsNotesMap && Object.keys(window._ctsNotesMap).length;
+    var hasCthNotes = window._cthNotesMap && Object.keys(window._cthNotesMap).length;
+    if (hasCtsNotes || hasCthNotes) {
       mergeNotesIntoData();
     }
 
