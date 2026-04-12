@@ -921,6 +921,10 @@ function showUnassignedOrdered() {
 // ===== RENDER TABS =====
 function renderCTS() {
   let rows = getGlobalFiltered(DATA.clickToShip, "Organization name");
+  // Auto-exclude orders over 29 days late
+  rows = rows.filter(function(r) { return (Number(r["Days late"]) || 0) <= 29; });
+  // Default sort: most days late first
+  rows.sort(function(a, b) { return (Number(b["Days late"]) || 0) - (Number(a["Days late"]) || 0); });
   filteredCache.cts = rows;
   const t = rows.length;
   const sc = countBy(rows, "Status");
@@ -943,6 +947,10 @@ function renderCTS() {
 
 function renderCTH() {
   let rows = getGlobalFiltered(DATA.clickToHome, "Organization name");
+  // Auto-exclude orders over 29 days late
+  rows = rows.filter(function(r) { return (Number(r["Days late"]) || 0) <= 29; });
+  // Default sort: most days late first
+  rows.sort(function(a, b) { return (Number(b["Days late"]) || 0) - (Number(a["Days late"]) || 0); });
   filteredCache.cth = rows;
   const t = rows.length;
   const sc = countBy(rows, "Status");
