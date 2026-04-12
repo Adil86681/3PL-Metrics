@@ -612,7 +612,18 @@ function renderTable(tab) {
     var isChecked = hasCheckbox && selectedRows[tab] && selectedRows[tab].has(rowIdx);
     var notes = r["Notes"] || "";
     var cotRef = (tab === "cts" || tab === "cth") ? extractCotRef(notes) : null;
-    html += "<tr>";
+    // Row highlight: red if past SLO, orange if approaching SLO (1 business day away or at SLO)
+    var rowStyle = "";
+    if (tab === "cts" || tab === "cth") {
+      var daysLate = Number(r["Days late"]) || 0;
+      var daysUntilSLO = Number(r["Days Until SLO"]);
+      if (daysLate > 0) {
+        rowStyle = ' style="background:rgba(255,80,80,0.12);"';  // light red — past SLO
+      } else if (daysUntilSLO <= 1 && daysUntilSLO >= 0) {
+        rowStyle = ' style="background:rgba(255,165,0,0.14);"';  // light orange — approaching SLO
+      }
+    }
+    html += "<tr" + rowStyle + ">";
     if (hasCheckbox) html += '<td><input type="checkbox" class="row-checkbox" data-row="'+rowIdx+'" '+(isChecked?'checked':'')+' onchange="toggleRowSelect(\''+tab+'\','+rowIdx+', this)" /></td>';
     html += cols.map(function(c) {
       var v = r[c] != null ? r[c] : "";
@@ -1676,7 +1687,7 @@ function flattenOrderItems(orders) {
         "Order item note": "",
         "Office name": "",
         "Timezone": "",
-        "SLO": 5,
+        "SLO": 3,  // default; overridden below by getSLO(country)
         "Days late": 0,
         "Days Until SLO": 0,
         "dropShipOnly": p.sku ? p.sku.dropShipOnly : false,
@@ -1696,19 +1707,50 @@ function flattenOrderItems(orders) {
       });
     }
   }
-  // Compute Days late and business days
+  // ── SLO by region (matches Retool 3PL Metrics) ──
+  // US = 0 days, CA/GB/EU = 1 day, everywhere else = 3 days
+  var SLO_0_COUNTRIES = { "US": 1 };
+  var SLO_1_COUNTRIES = { "CA": 1, "GB": 1, "FR": 1, "DE": 1, "ES": 1, "IT": 1, "NL": 1, "BE": 1, "AT": 1, "IE": 1, "PT": 1, "SE": 1, "DK": 1, "FI": 1, "NO": 1, "PL": 1, "CZ": 1, "RO": 1, "HU": 1, "GR": 1, "BG": 1, "HR": 1, "SK": 1, "SI": 1, "LT": 1, "LV": 1, "EE": 1, "CY": 1, "LU": 1, "MT": 1, "CH": 1 };
+
+  function getSLO(countryCode) {
+    if (SLO_0_COUNTRIES[countryCode]) return 0;
+    if (SLO_1_COUNTRIES[countryCode]) return 1;
+    return 3;
+  }
+
+  // ── Compute CTS/CTH business days and Days late ──
+  // Business days are counted starting from the DAY AFTER the start date
+  // (i.e., if created on Monday, Tuesday is day 1). This matches Retool.
   var now = new Date();
+  var todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
+    var cc = r["Country"] || r["Country code"] || "";
+    r["SLO"] = getSLO(cc);
+
     if (r["Created at"]) {
       var created = new Date(r["Created at"]);
-      var diffMs = now - created;
-      var calDays = Math.floor(diffMs / 86400000);
+      var startDate = new Date(created.getFullYear(), created.getMonth(), created.getDate());
+
+      // Calendar days (full days elapsed)
+      var calDays = Math.round((todayMidnight - startDate) / 86400000);
+
+      // Business days: count from the DAY AFTER start date up to today (inclusive)
       var busDays = 0;
-      var d = new Date(created);
-      while (d < now) { var dow = d.getDay(); if (dow !== 0 && dow !== 6) busDays++; d.setDate(d.getDate() + 1); }
-      var slo = Number(r["SLO"]) || 5;
-      r["Days late"] = Math.max(0, busDays - slo);
+      var d = new Date(startDate);
+      d.setDate(d.getDate() + 1); // start from next day
+      while (d <= todayMidnight) {
+        var dow = d.getDay();
+        if (dow !== 0 && dow !== 6) busDays++;
+        d.setDate(d.getDate() + 1);
+      }
+
+      var slo = r["SLO"];
+      // Effective SLO for late calculation: minimum 1 business day grace
+      // (matches Retool: SLO 0 still gets 1 business day before being "late")
+      var effectiveSLO = Math.max(1, slo);
+      r["Days late"] = Math.max(0, busDays - effectiveSLO);
       r["Days Until SLO"] = slo - busDays;
       r["CTS Business Days"] = busDays;
       r["CTS Calendar Days"] = calDays;
@@ -1768,35 +1810,18 @@ async function fetchLiveData() {
     var cthIdSet = {};
     DATA.clickToHome.forEach(function(r) { cthIdSet[r["Order item ID"]] = true; });
 
-    // ── 2. CLICK TO SHIP + UNASSIGNED (two queries merged, split client-side) ──
-    // Query A: product-level statuses (orderItemStatuses) — catches most items
-    var openOrdersA = await fetchAllPages(
-      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { orderItemStatuses: [PROCESSING, ORDERED, APPROVED] }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
-      'getAllOrders', 'Open Orders (item statuses)'
+    // ── 2. CLICK TO SHIP + UNASSIGNED ──
+    // Single query using ORDER-LEVEL statuses + LIVE orgs only
+    // This matches the Retool 3PL Metrics CTS view:
+    //   - Order statuses: PROCESSING, ORDERED, APPROVED, PARTIALLY_SHIPPED
+    //   - Organization status: LIVE (excludes DEMO/INACTIVE sandbox orgs)
+    //   - Client-side: filter items to PROCESSING/ORDERED/APPROVED, then split by assignment
+    var openOrders = await fetchAllPages(
+      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { statuses: [PROCESSING, ORDERED, APPROVED, PARTIALLY_SHIPPED], organizationStatuses: [LIVE] }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
+      'getAllOrders', 'Open Orders'
     );
-    var rowsA = flattenOrderItems(openOrdersA);
-    console.log("[Data] Query A (orderItemStatuses) items:", rowsA.length);
-
-    // Query B: order-level statuses — catches items the item-level filter misses
-    // (e.g. items in PARTIALLY_SHIPPED orders where the product is still Processing)
-    var openOrdersB = await fetchAllPages(
-      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { statuses: [PROCESSING, ORDERED, APPROVED, PARTIALLY_SHIPPED] }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
-      'getAllOrders', 'Open Orders (order statuses)'
-    );
-    var rowsB = flattenOrderItems(openOrdersB);
-    console.log("[Data] Query B (order-level statuses) items:", rowsB.length);
-
-    // Merge and deduplicate by Order item ID
-    var seenOpenIds = {};
-    var allOpenRows = [];
-    rowsA.concat(rowsB).forEach(function(r) {
-      var id = r["Order item ID"];
-      if (!seenOpenIds[id]) {
-        seenOpenIds[id] = true;
-        allOpenRows.push(r);
-      }
-    });
-    console.log("[Data] Merged + deduped open items:", allOpenRows.length);
+    var allOpenRows = flattenOrderItems(openOrders);
+    console.log("[Data] Open order items (LIVE orgs):", allOpenRows.length);
 
     // Filter to target statuses and exclude anything already in CTH
     var openFiltered = allOpenRows.filter(function(r) {
