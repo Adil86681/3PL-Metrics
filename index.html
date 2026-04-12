@@ -163,6 +163,20 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 .jira-assignee-selected img { width: 20px; height: 20px; border-radius: 50%; }
 .jira-assignee-clear { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.7rem; margin-left: auto; padding: 0 4px; }
 .jira-assignee-clear:hover { color: var(--danger); }
+/* CATEGORY TOOLTIP */
+.cat-tooltip { position: relative; cursor: help; }
+.cat-tooltip .cat-tip {
+  display: none; position: absolute; z-index: 60;
+  bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 10px;
+  font-size: 0.62rem; color: var(--text); font-family: "DM Mono", monospace;
+  white-space: normal; min-width: 160px; max-width: 260px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18); pointer-events: none;
+  line-height: 1.45;
+}
+.cat-tooltip:hover .cat-tip { display: block; }
+
 /* CLICKABLE KPI */
 .kpi-clickable { cursor: pointer; transition: background 0.15s; }
 .kpi-clickable:hover { background: var(--surface2); }
@@ -626,6 +640,10 @@ function renderTable(tab) {
       if (c === "Status" || c === "Item Status") return "<td>"+statusBadge(v)+"</td>";
       if (c === "Order item ID" || c === "Order ID") return '<td style="white-space:nowrap"><span title="'+v+'" style="margin-right:4px">'+(v.length>8?v.slice(0,8)+'...':v)+'</span><button class="copy-btn" data-oid="'+v+'">Copy</button></td>';
       if (c === "Notes") return '<td class="notes-cell" title="'+v.toString().replace(/"/g,'&quot;')+'">'+v+'</td>';
+      if (c === "Category" && (tab === "cts" || tab === "cth")) {
+        var prodTitle = (r["Product title"] || "").toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        if (prodTitle) return '<td><span class="cat-tooltip">'+v+'<span class="cat-tip">'+prodTitle+'</span></span></td>';
+      }
       return '<td title="'+v+'">'+v+'</td>';
     }).join("");
     if (cotRef) {
