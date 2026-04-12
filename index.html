@@ -1751,59 +1751,80 @@ async function fetchLiveData() {
     var CTS_STATUSES = { PROCESSING: 1, ORDERED: 1, APPROVED: 1 };
     var CTH_STATUSES = { SHIPPED: 1, OUT_FOR_DELIVERY: 1, DELIVERY_EXCEPTION: 1, PROCESSING: 1 };
 
-    // ── 1. CLICK TO SHIP ──
-    // Key filter: fulfilledNotShipped=true (items assigned to fulfilment but not yet shipped)
-    // CTS = items with WAREHOUSE fulfilment method + target statuses
-    var ctsOrders = await fetchAllPages(
-      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { fulfilledNotShipped: true, orderItemStatuses: [PROCESSING, ORDERED, APPROVED] }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
-      'getAllOrders', 'Click To Ship'
-    );
-    var ctsRows = flattenOrderItems(ctsOrders);
-    // Log breakdown before filtering
-    var ctsStatusFiltered = ctsRows.filter(function(r) { return CTS_STATUSES[r._rawStatus]; });
-    var methodCounts = {};
-    ctsStatusFiltered.forEach(function(r) { var m = r._fulfilmentMethod || "null"; methodCounts[m] = (methodCounts[m]||0) + 1; });
-    console.log("[CTS DEBUG] Total flattened rows:", ctsRows.length);
-    console.log("[CTS DEBUG] After status filter (no WAREHOUSE filter):", ctsStatusFiltered.length);
-    console.log("[CTS DEBUG] Fulfilment method breakdown:", JSON.stringify(methodCounts));
-    // Split by fulfilment method and filter to target statuses
-    DATA.clickToShip = ctsRows.filter(function(r) {
-      return CTS_STATUSES[r._rawStatus];
-    });
-    console.log("[CTS DEBUG] After WAREHOUSE filter:", DATA.clickToShip.length);
-    totalLoaded += DATA.clickToShip.length;
-
-    // ── 2. CLICK TO HOME ──
-    // Use ORDER-LEVEL statuses filter (not orderItemStatuses) — this returns orders
-    // where the ORDER status is SHIPPED/OFD/DE, giving ~941 items (closest to 975 target)
+    // ── 1. CLICK TO HOME (fetch first so we can deduplicate) ──
+    // ORDER-LEVEL statuses: SHIPPED/OFD/DE
     var cthOrders = await fetchAllPages(
       function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { statuses: [SHIPPED, OUT_FOR_DELIVERY, DELIVERY_EXCEPTION] }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
       'getAllOrders', 'Click To Home'
     );
     var allCthRows = flattenOrderItems(cthOrders);
-    // Keep items with CTH-relevant statuses (Shipped, OFD, DE, Processing)
-    // Check both product-level status AND order-level status for Delivery Exception
     DATA.clickToHome = allCthRows.filter(function(r) {
       return CTH_STATUSES[r._rawStatus] || r._orderStatus === 'DELIVERY_EXCEPTION';
     });
     totalLoaded += DATA.clickToHome.length;
-    console.log("[Data] CTH:", DATA.clickToHome.length, "(target ~975)");
+    console.log("[Data] CTH:", DATA.clickToHome.length);
 
-    // ── 3. UNASSIGNED ORDERS ──
-    // fulfilledNotShipped: false = items NOT yet assigned to fulfilment
-    // Combined with orderItemStatuses [ORDERED, APPROVED] to narrow results
-    var uaYearStart = new Date().getFullYear() + '-01-01';
-    var uaOrders = await fetchAllPages(
-      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { fulfilledNotShipped: false, orderItemStatuses: [ORDERED, APPROVED], createdAtDateRange: { begin: "' + uaYearStart + '", end: "' + dateToStr + '" } }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
-      'getAllOrders', 'Unassigned Orders'
+    // Build a set of CTH item IDs so we can exclude them from CTS/Unassigned
+    var cthIdSet = {};
+    DATA.clickToHome.forEach(function(r) { cthIdSet[r["Order item ID"]] = true; });
+
+    // ── 2. CLICK TO SHIP + UNASSIGNED (two queries merged, split client-side) ──
+    // Query A: product-level statuses (orderItemStatuses) — catches most items
+    var openOrdersA = await fetchAllPages(
+      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { orderItemStatuses: [PROCESSING, ORDERED, APPROVED] }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
+      'getAllOrders', 'Open Orders (item statuses)'
     );
-    var uaRows = flattenOrderItems(uaOrders);
-    // Filter to only ORDERED/APPROVED product-level statuses
-    DATA.unassigned = uaRows.filter(function(r) {
-      return r._rawStatus === 'ORDERED' || r._rawStatus === 'APPROVED';
+    var rowsA = flattenOrderItems(openOrdersA);
+    console.log("[Data] Query A (orderItemStatuses) items:", rowsA.length);
+
+    // Query B: order-level statuses — catches items the item-level filter misses
+    // (e.g. items in PARTIALLY_SHIPPED orders where the product is still Processing)
+    var openOrdersB = await fetchAllPages(
+      function(p) { return '{ getAllOrders(pagingAndSorting: { pageNumber: ' + p + ', pageSize: 200 }, orderFilter: { statuses: [PROCESSING, ORDERED, APPROVED, PARTIALLY_SHIPPED] }) { totalPages data { ' + ORDER_FIELDS + ' } } }'; },
+      'getAllOrders', 'Open Orders (order statuses)'
+    );
+    var rowsB = flattenOrderItems(openOrdersB);
+    console.log("[Data] Query B (order-level statuses) items:", rowsB.length);
+
+    // Merge and deduplicate by Order item ID
+    var seenOpenIds = {};
+    var allOpenRows = [];
+    rowsA.concat(rowsB).forEach(function(r) {
+      var id = r["Order item ID"];
+      if (!seenOpenIds[id]) {
+        seenOpenIds[id] = true;
+        allOpenRows.push(r);
+      }
     });
-    totalLoaded += DATA.unassigned.length;
-    console.log("[Data] Unassigned:", DATA.unassigned.length, "(target ~118)");
+    console.log("[Data] Merged + deduped open items:", allOpenRows.length);
+
+    // Filter to target statuses and exclude anything already in CTH
+    var openFiltered = allOpenRows.filter(function(r) {
+      return CTS_STATUSES[r._rawStatus] && !cthIdSet[r["Order item ID"]];
+    });
+    console.log("[Data] After status filter + CTH dedup:", openFiltered.length);
+
+    // Client-side classification:
+    // CTS = item has inventory, reserved inventory, OR an order fulfilment record
+    //        (i.e., it has been assigned to a warehouse / 3PL / person)
+    // Unassigned = none of the above
+    DATA.clickToShip = [];
+    DATA.unassigned = [];
+    openFiltered.forEach(function(r) {
+      var hasAssignment = r._hasOrderFulfilment
+        || r._hasReservedInventory
+        || (r["Inventory ID"] && r["Inventory ID"] !== "")
+        || (r["Warehouse name"] && r["Warehouse name"] !== "")
+        || (r["Assigned to"] && r["Assigned to"] !== "" && r["Assigned to"] !== "unassigned");
+      if (hasAssignment) {
+        DATA.clickToShip.push(r);
+      } else {
+        DATA.unassigned.push(r);
+      }
+    });
+    totalLoaded += DATA.clickToShip.length + DATA.unassigned.length;
+    console.log("[Data] CTS (assigned):", DATA.clickToShip.length);
+    console.log("[Data] Unassigned:", DATA.unassigned.length);
 
     // ── 4. NOTES ──
     // Notes are loaded separately via CSV upload — merge into data if available
