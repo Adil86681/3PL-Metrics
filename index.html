@@ -586,8 +586,8 @@ const pageState = { cts: 0, cth: 0, unassigned: 0 };
 const filteredCache = { cts: [], cth: [], unassigned: [] };
 
 const TABLE_COLS = {
-  cts: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Recipient","Country","Region code","Days late","SLO","CTS Business Days","Notes"],
-  cth: ["Order item ID","Order ID","Organization name","Status","Category","Assigned to","Recipient","Country","Warehouse name","Days late","CTH Business Days","Notes"],
+  cts: ["Order item ID","Order ID","Organization name","Status","Item Description","Assigned to","Recipient","Country","Region code","Days late","SLO","CTS Business Days","Notes"],
+  cth: ["Order item ID","Order ID","Organization name","Status","Item Description","Assigned to","Recipient","Country","Warehouse name","Days late","CTH Business Days","Notes"],
   unassigned: ["Order item ID","Order ID","Organization name","Item Status","Country code","Product title","Recipient","Created At","Office name"]
 };
 
@@ -640,10 +640,6 @@ function renderTable(tab) {
       if (c === "Status" || c === "Item Status") return "<td>"+statusBadge(v)+"</td>";
       if (c === "Order item ID" || c === "Order ID") return '<td style="white-space:nowrap"><span title="'+v+'" style="margin-right:4px">'+(v.length>8?v.slice(0,8)+'...':v)+'</span><button class="copy-btn" data-oid="'+v+'">Copy</button></td>';
       if (c === "Notes") return '<td class="notes-cell" title="'+v.toString().replace(/"/g,'&quot;')+'">'+v+'</td>';
-      if (c === "Category" && (tab === "cts" || tab === "cth")) {
-        var prodTitle = (r["Product title"] || "").toString().trim().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        if (prodTitle) return '<td><span class="cat-tooltip">'+v+'<span class="cat-tip">'+prodTitle+'</span></span></td>';
-      }
       return '<td title="'+v+'">'+v+'</td>';
     }).join("");
     if (cotRef) {
@@ -1610,7 +1606,7 @@ function openViewTicketModal(tab, rowIdx, cotRef) {
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.62rem;">';
   html += '<div style="color:var(--muted);">Organization</div><div style="color:var(--text);">'+(r["Organization name"]||"")+'</div>';
   html += '<div style="color:var(--muted);">Status</div><div>'+statusBadge(r["Status"]||r["Item Status"]||"")+'</div>';
-  html += '<div style="color:var(--muted);">Category</div><div style="color:var(--text);">'+(r["Category"]||"")+'</div>';
+  html += '<div style="color:var(--muted);">Item Description</div><div style="color:var(--text);">'+(r["Item Description"]||r["Category"]||"")+'</div>';
   html += '<div style="color:var(--muted);">Days Late</div><div style="color:'+(r["Days late"]>0?'var(--danger)':'var(--text)')+';">'+(r["Days late"]||0)+'</div>';
   html += '</div>';
   html += '</div>';
@@ -1704,7 +1700,9 @@ function flattenOrderItems(orders) {
         "Status": p.status ? p.status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, function(c){return c.toUpperCase();}).replace(/\bOfd\b/,"OFD") : "",
         "Country": order.shippingAddress ? order.shippingAddress.countryCode : "",
         "Category": p.sku && p.sku.category ? p.sku.category.code : "",
-        "Product title": p.sku && p.sku.skuInformation ? p.sku.skuInformation.productTitle : "",
+        "Category name": p.sku && p.sku.category ? (p.sku.category.nameSingular || "") : "",
+        "Product title": p.sku && p.sku.skuInformation ? (p.sku.skuInformation.productTitle || "") : "",
+        "Item Description": (p.sku && p.sku.skuInformation && p.sku.skuInformation.productTitle) ? p.sku.skuInformation.productTitle : ((p.sku && p.sku.category && p.sku.category.nameSingular) ? p.sku.category.nameSingular : (p.sku && p.sku.category ? p.sku.category.code : "")),
         "Recipient": order.person ? (order.person.forename + " " + order.person.surname) : "",
         "Employee start date": order.person ? order.person.startDate : "",
         "Assigned to": (p.inventory && p.inventory.warehouse ? p.inventory.warehouse.name : (p.reservedInventory && p.reservedInventory.warehouse ? p.reservedInventory.warehouse.name : (p.orderFulfilment && p.orderFulfilment.method ? p.orderFulfilment.method : "unassigned"))),
