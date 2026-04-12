@@ -1192,23 +1192,29 @@ function handleNotesUpload(file) {
       var low = h.toLowerCase();
       return low.indexOf("order_item_id") !== -1 || low.indexOf("order item id") !== -1 || low.indexOf("orderitemid") !== -1 || low === "id" || low === "order_id";
     }) || headers[0];
-    // Find note column
-    var noteCol = headers.find(function(h) {
-      var low = h.toLowerCase();
-      return low.indexOf("note") !== -1 || low.indexOf("comment") !== -1 || low.indexOf("additional") !== -1;
-    });
+    // Find note column — prefer exact "Notes" match over partial matches like "Item Notes"
+    var noteCol = headers.find(function(h) { return h.trim() === "Notes"; });
+    if (!noteCol) {
+      noteCol = headers.find(function(h) {
+        var low = h.toLowerCase();
+        return low.indexOf("note") !== -1 || low.indexOf("comment") !== -1 || low.indexOf("additional") !== -1;
+      });
+    }
     if (!noteCol) {
       // Use last column as fallback
       noteCol = headers[headers.length - 1];
     }
     console.log("[Notes CSV] Using ID column: '" + idCol + "', Note column: '" + noteCol + "'");
+    console.log("[Notes CSV] Sample row keys:", Object.keys(rows[0]).join(", "));
+    console.log("[Notes CSV] Sample note value:", rows[0][noteCol]);
     // Build map
     window._notesMap = {};
     var count = 0;
     rows.forEach(function(r) {
       var id = (r[idCol] || "").toString().trim();
       var note = (r[noteCol] || "").toString().trim();
-      if (id && note) {
+      // Skip if note is just the literal "Notes" (header artifact from Item Notes column)
+      if (id && note && note !== "Notes") {
         window._notesMap[id] = note;
         count++;
       }
