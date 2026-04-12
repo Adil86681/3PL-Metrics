@@ -164,7 +164,7 @@ header { display: flex; align-items: flex-end; justify-content: space-between; m
 .jira-assignee-clear { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.7rem; margin-left: auto; padding: 0 4px; }
 .jira-assignee-clear:hover { color: var(--danger); }
 /* CATEGORY TOOLTIP */
-.cat-tooltip { position: relative; cursor: help; }
+.cat-tooltip { position: relative; cursor: default; }
 .cat-tooltip .cat-tip {
   display: none; position: absolute; z-index: 60;
   bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
@@ -641,7 +641,7 @@ function renderTable(tab) {
       if (c === "Order item ID" || c === "Order ID") return '<td style="white-space:nowrap"><span title="'+v+'" style="margin-right:4px">'+(v.length>8?v.slice(0,8)+'...':v)+'</span><button class="copy-btn" data-oid="'+v+'">Copy</button></td>';
       if (c === "Notes") return '<td class="notes-cell" title="'+v.toString().replace(/"/g,'&quot;')+'">'+v+'</td>';
       if (c === "Category" && (tab === "cts" || tab === "cth")) {
-        var prodTitle = (r["Product title"] || "").toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        var prodTitle = (r["Product title"] || "").toString().trim().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         if (prodTitle) return '<td><span class="cat-tooltip">'+v+'<span class="cat-tip">'+prodTitle+'</span></span></td>';
       }
       return '<td title="'+v+'">'+v+'</td>';
