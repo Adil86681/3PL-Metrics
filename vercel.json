@@ -1,6 +1,8 @@
 {
   "rewrites": [
     { "source": "/api/graphql", "destination": "/api/graphql" },
-    { "source": "/api/token-check", "destination": "/api/token-check" }
+    { "source": "/api/token-check", "destination": "/api/token-check" },
+    { "source": "/api/jira", "destination": "/api/jira" },
+    { "source": "/api/jira-users", "destination": "/api/jira-users" }
   ]
 }
