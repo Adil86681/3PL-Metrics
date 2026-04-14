@@ -2,7 +2,6 @@
  * Vercel Serverless Function — /api/token-check
  *
  * Verifies that the OAuth token can be obtained successfully.
- * Called by the dashboard before loading data.
  */
 
 const AUTH_TOKEN_URL = 'https://auth.firstbasehq.com/oauth2/default/v1/token';
