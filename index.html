@@ -818,21 +818,22 @@ function copySelectedRows(tab) {
       var row = rows[idx];
       dataRows.push({
         id: row["Order item ID"] || row["Order Item ID"] || "",
+        recipient: row["Recipient"] || row["Person name"] || "",
         org: row["Organization name"] || "",
-        region: getCountryName(row["Country"] || row["Country code"] || ""),
-        recipient: row["Recipient"] || row["Person name"] || ""
+        daysUntilSLO: row["Days Until SLO"] != null ? Number(row["Days Until SLO"]) : ""
       });
     }
   });
   // Build HTML table for Teams
-  var html = '<table><thead><tr><th>Order Item ID</th><th>Org</th><th>Region</th><th>Recipient</th></tr></thead><tbody>';
+  var html = '<table><thead><tr><th>Order ID</th><th>Recipient</th><th>Organization</th><th>Days Until SLO</th></tr></thead><tbody>';
   dataRows.forEach(function(d) {
-    html += '<tr><td>' + d.id + '</td><td>' + d.org + '</td><td>' + d.region + '</td><td>' + d.recipient + '</td></tr>';
+    var daysDisplay = d.daysUntilSLO !== "" ? d.daysUntilSLO + " day(s)" : "";
+    html += '<tr><td>' + d.id + '</td><td>' + d.recipient + '</td><td>' + d.org + '</td><td>' + daysDisplay + '</td></tr>';
   });
   html += '</tbody></table>';
   // Build plain text fallback
-  var plain = "Order Item ID\tOrg\tRegion\tRecipient\n";
-  dataRows.forEach(function(d) { plain += d.id + "\t" + d.org + "\t" + d.region + "\t" + d.recipient + "\n"; });
+  var plain = "Order ID\tRecipient\tOrganization\tDays Until SLO\n";
+  dataRows.forEach(function(d) { var daysDisplay = d.daysUntilSLO !== "" ? d.daysUntilSLO + " day(s)" : ""; plain += d.id + "\t" + d.recipient + "\t" + d.org + "\t" + daysDisplay + "\n"; });
   // Copy as HTML + plain text
   var blob = new Blob([html], { type: "text/html" });
   var textBlob = new Blob([plain], { type: "text/plain" });
@@ -1360,8 +1361,8 @@ function openJiraModal(tab, rowIdx) {
   var org = r["Organization name"] || "";
   var orderId = r["Order item ID"] || r["Order ID"] || "";
   var status = r["Status"] || r["Item Status"] || "";
-  var summary = "[" + tabLabels[tab] + "] " + org + " — " + orderId;
-  if (status) summary += " (" + status + ")";
+  var recipient = r["Recipient"] || r["Person name"] || "";
+  var summary = tabLabels[tab] + " - " + orderId + " - " + recipient;
 
   // Build description with all row data
   var descLines = [];
