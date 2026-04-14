@@ -1,14 +1,8 @@
 {
-  "name": "3pl-metrics-jira",
+  "name": "open-orders-dashboard-2",
   "version": "1.0.0",
   "private": true,
-  "description": "3PL Metrics dashboard with Jira integration — hosted on Vercel",
-  "scripts": {
-    "dev": "vercel dev",
-    "deploy": "vercel --prod"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "vercel": "^39.0.0"
+  "engines": {
+    "node": ">=18"
   }
 }

@@ -1,4 +1,6 @@
 {
-  "version": 2,
-  "framework": null
+  "rewrites": [
+    { "source": "/api/graphql", "destination": "/api/graphql" },
+    { "source": "/api/token-check", "destination": "/api/token-check" }
+  ]
 }
